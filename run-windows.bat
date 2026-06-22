@@ -13,4 +13,4 @@ if errorlevel 1 (
 )
 
 echo [ACORE] Kontener inditasa...
-docker run -it --rm -v "%cd%/configs:/host-configs" -p 8085:8085 -p 3724:3724 -p 3310:3310 -p 8000:8000 acore
+docker run -it --rm -v "%cd%/configs:/host-configs" -v acore-bin:/opt/acore -v acore-source:/acore -p 8085:8085 -p 3724:3724 -p 3310:3310 -p 8000:8000 --cap-add SYS_NICE --cap-add IPC_LOCK --ulimit memlock=-1 acore

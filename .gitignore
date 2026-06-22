@@ -1,0 +1,11 @@
+# Ignore local wow-tools build outputs
+/wow-tools/
+
+# Ignore custom and auto-generated configs
+/configs/*.conf
+/configs/modules/*.conf
+/configs/admin_password.txt
+
+# Ignore WoW client data files (dbc, maps, vmaps, mmaps)
+/configs/data/*
+!/configs/data/.gitkeep

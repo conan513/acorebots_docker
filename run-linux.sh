@@ -17,8 +17,13 @@ echo "[ACORE] Konténer indítása..."
 
 docker run -it --rm \
     -v "$(pwd)/configs:/host-configs" \
+    -v acore-bin:/opt/acore \
+    -v acore-source:/acore \
     -p 8085:8085 \
     -p 3724:3724 \
     -p 3310:3310 \
     -p 8000:8000 \
+    --cap-add SYS_NICE \
+    --cap-add IPC_LOCK \
+    --ulimit memlock=-1 \
     acore

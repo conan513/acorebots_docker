@@ -1,11 +1,13 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const { spawn, exec } = require('child_process');
 
 const PORT = 8000;
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 const PUBLIC_DIR = path.join(__dirname, 'public');
+const MODULES_CONFIG_FILE = '/host-configs/modules.json';
+const PASSWORD_FILE = '/host-configs/admin_password.txt';
 
 // Globális session tároló
 const activeSessions = new Set();
@@ -16,6 +18,7 @@ let worldProcess = null;
 
 let authState = 'stopped'; // stopped, starting, running
 let worldState = 'stopped'; // stopped, starting, running
+let rebuildStatus = 'idle'; // idle, building
 
 let authPid = null;
 let worldPid = null;
@@ -157,7 +160,8 @@ async function sendStatsUpdate() {
             ram: worldStats.ram,
             uptime: worldUptime
         },
-        playerCount: activePlayerCount
+        playerCount: activePlayerCount,
+        rebuildStatus: rebuildStatus
     };
 
     broadcastToSse('stats', payload);
@@ -173,6 +177,12 @@ function handleProcessOutput(process, name) {
         
         lines.forEach(line => {
             addLog(name, line);
+            
+            // Automatikus "yes" válasz küldése adatbázis és frissítési kérdésekre
+            if (name === 'world' && (line.includes('[yes (default) / no]:') || line.includes('Do you want to create it?') || line.includes('Do you want to apply'))) {
+                addSystemLog('Adatbázis/frissítés jóváhagyási kérdés észlelve a Worldservertől. Automatikus válasz: yes');
+                process.stdin.write('yes\n');
+            }
             
             // Worldserver indítási fázisának figyelése
             if (name === 'world' && worldState === 'starting') {
@@ -428,13 +438,12 @@ const server = http.createServer((req, res) => {
 
     // 4) Admin bejelentkezés ellenőrzése
     if (method === 'GET' && url === '/api/admin/check-auth') {
-        if (isAuthenticated) {
-            res.writeHead(200);
-            res.end();
-        } else {
-            res.writeHead(401);
-            res.end();
-        }
+        const setupRequired = !hasAdminPassword();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+            authenticated: isAuthenticated,
+            setupRequired: setupRequired
+        }));
         return;
     }
 
@@ -445,7 +454,14 @@ const server = http.createServer((req, res) => {
         req.on('end', () => {
             try {
                 const { password } = JSON.parse(body);
-                if (password === ADMIN_PASSWORD) {
+                const currentPassword = getAdminPassword();
+
+                if (!currentPassword) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    return res.end(JSON.stringify({ message: 'A rendszer nincs konfigurálva! Kérjük állítsd be a jelszót először.' }));
+                }
+
+                if (password === currentPassword) {
                     const sessionId = Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
                     activeSessions.add(sessionId);
 
@@ -457,6 +473,45 @@ const server = http.createServer((req, res) => {
                 } else {
                     res.writeHead(401, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ message: 'Hibás adminisztrátori jelszó!' }));
+                }
+            } catch (err) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ message: 'Hibás kérés!' }));
+            }
+        });
+        return;
+    }
+
+    // 5/b) Admin első beállítás (Setup)
+    if (method === 'POST' && url === '/api/admin/setup') {
+        if (hasAdminPassword()) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ message: 'A jelszó már be van állítva!' }));
+        }
+
+        let body = '';
+        req.on('data', chunk => { body += chunk.toString(); });
+        req.on('end', () => {
+            try {
+                const { password } = JSON.parse(body);
+                if (!password || password.length < 6) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    return res.end(JSON.stringify({ message: 'A jelszónak legalább 6 karakternek kell lennie!' }));
+                }
+
+                if (setAdminPassword(password)) {
+                    const sessionId = Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
+                    activeSessions.add(sessionId);
+
+                    res.writeHead(200, {
+                        'Set-Cookie': `SessionId=${sessionId}; Path=/; HttpOnly; SameSite=Strict`,
+                        'Content-Type': 'application/json'
+                    });
+                    res.end(JSON.stringify({ success: true }));
+                    addSystemLog('Az adminisztrátori jelszó sikeresen beállítva az első használat során.');
+                } else {
+                    res.writeHead(500, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ message: 'Nem sikerült elmenteni a jelszót!' }));
                 }
             } catch (err) {
                 res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -566,10 +621,509 @@ const server = http.createServer((req, res) => {
         return;
     }
 
+    // 9) Modulok listájának lekérdezése
+    if (method === 'GET' && url === '/api/admin/modules') {
+        const modules = getSavedModules();
+        const rebuildRequired = checkRebuildRequired();
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ modules, rebuildRequired }));
+        return;
+    }
+
+    // 10) Modul hozzáadása vagy eltávolítása a listából
+    if (method === 'POST' && url === '/api/admin/modules') {
+        let body = '';
+        req.on('data', chunk => { body += chunk.toString(); });
+        req.on('end', () => {
+            try {
+                const { action, url: moduleUrl } = JSON.parse(body);
+                if (!action || !moduleUrl) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    return res.end(JSON.stringify({ message: 'Hiányzó paraméterek!' }));
+                }
+
+                let modules = getSavedModules();
+
+                if (action === 'add') {
+                    if (!moduleUrl.startsWith('http://') && !moduleUrl.startsWith('https://') && !moduleUrl.startsWith('git@')) {
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        return res.end(JSON.stringify({ message: 'Érvénytelen Git URL!' }));
+                    }
+
+                    if (modules.includes(moduleUrl)) {
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        return res.end(JSON.stringify({ message: 'Ez a modul már hozzá van adva!' }));
+                    }
+
+                    modules.push(moduleUrl);
+                    saveSavedModules(modules);
+                    addSystemLog(`Modul hozzáadva a listához: ${moduleUrl}`);
+
+                } else if (action === 'delete') {
+                    modules = modules.filter(m => m !== moduleUrl);
+                    saveSavedModules(modules);
+                    addSystemLog(`Modul törölve a listáról: ${moduleUrl}`);
+                }
+
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true }));
+
+            } catch (err) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ message: 'Szerveroldali hiba!' }));
+            }
+        });
+        return;
+    }
+
+    // 11) Szerver újrafordítás indítása (Rebuild)
+    if (method === 'POST' && url === '/api/admin/rebuild') {
+        if (rebuildStatus === 'building') {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ message: 'A fordítás már folyamatban van!' }));
+        }
+
+        let body = '';
+        req.on('data', chunk => { body += chunk.toString(); });
+        req.on('end', () => {
+            let mode = 'full';
+            try { mode = JSON.parse(body).mode || 'full'; } catch(e) {}
+            
+            // Indítás a háttérben
+            runRebuild(mode);
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true }));
+        });
+        return;
+    }
+
+    // 12) Tool exportálás a host mappába
+    if (method === 'POST' && url === '/api/admin/export-tools') {
+        const toolsDir = '/host-configs/tools';
+        const binDir = '/opt/acore/bin';
+        const possibleTools = [
+            'map_extractor', 'mapextractor',
+            'vmap4_extractor', 'vmap4extractor',
+            'vmap4_assembler', 'vmap4assembler',
+            'mmaps_generator'
+        ];
+
+        try {
+            fs.mkdirSync(toolsDir, { recursive: true });
+            const exported = [];
+            const missing = [];
+
+            // Csoportosítjuk a kívánt toolokat (ha valamelyik verzió megvan, akkor a fő tool megvan)
+            const toolGroups = [
+                { key: 'mapextractor', names: ['map_extractor', 'mapextractor'] },
+                { key: 'vmap4extractor', names: ['vmap4_extractor', 'vmap4extractor'] },
+                { key: 'vmap4assembler', names: ['vmap4_assembler', 'vmap4assembler'] },
+                { key: 'mmaps_generator', names: ['mmaps_generator'] }
+            ];
+
+            toolGroups.forEach(group => {
+                let found = false;
+                group.names.forEach(name => {
+                    const src = path.join(binDir, name);
+                    const dst = path.join(toolsDir, name);
+                    if (fs.existsSync(src)) {
+                        fs.copyFileSync(src, dst);
+                        fs.chmodSync(dst, 0o755);
+                        exported.push(name);
+                        found = true;
+                    }
+                });
+                if (!found) {
+                    missing.push(group.key);
+                }
+            });
+
+            // Generáljuk le a segéd-szkripteket is a célmappába
+            if (exported.length > 0) {
+                const shContent = `#!/bin/bash
+# ============================================================
+#  AzerothCore Client Data Extractor (All-in-One)
+#  Futtasd ezt a scriptet a WoW 3.3.5a kliens főkönyvtárában!
+# ============================================================
+
+set -e
+
+if [ ! -d "Data" ] && [ ! -d "data" ]; then
+    echo "HIBA: Úgy tűnik, nem a WoW kliens főkönyvtárában vagy."
+    echo "Másold be ezt a scriptet és az exportált toolokat a WoW kliens mellé!"
+    exit 1
+fi
+
+echo "=============================================="
+echo "  AzerothCore All-in-One Extractor"
+echo "=============================================="
+echo ""
+
+MAP_EXTRACTOR="./map_extractor"
+if [ ! -f "$MAP_EXTRACTOR" ]; then MAP_EXTRACTOR="./mapextractor"; fi
+
+VMAP_EXTRACTOR="./vmap4_extractor"
+if [ ! -f "$VMAP_EXTRACTOR" ]; then VMAP_EXTRACTOR="./vmap4extractor"; fi
+
+VMAP_ASSEMBLER="./vmap4_assembler"
+if [ ! -f "$VMAP_ASSEMBLER" ]; then VMAP_ASSEMBLER="./vmap4assembler"; fi
+
+MMAP_GENERATOR="./mmaps_generator"
+if [ ! -f "$MMAP_GENERATOR" ]; then MMAP_GENERATOR="./mmaps_generator"; fi
+
+for bin in "$MAP_EXTRACTOR" "$VMAP_EXTRACTOR" "$VMAP_ASSEMBLER" "$MMAP_GENERATOR"; do
+    if [ ! -f "$bin" ]; then
+        echo "HIBA: A(z) '$bin' tool nem található ebben a mappában!"
+        echo "Kérlek másold ide a kiexportált fájlokat."
+        exit 1
+    fi
+    chmod +x "$bin"
+done
+
+echo "[1/4] Térképek kicsomagolása (Maps/DBC)..."
+"$MAP_EXTRACTOR"
+echo "      ✓ Maps és DBC kicsomagolva!"
+echo ""
+
+echo "[2/4] Vmaps kicsomagolása (Vmaps Extractor)..."
+"$VMAP_EXTRACTOR"
+echo "      ✓ Vmaps kicsomagolva!"
+echo ""
+
+echo "[3/4] Vmaps összeállítása (Vmaps Assembler)..."
+mkdir -p vmaps
+"$VMAP_ASSEMBLER" Buildings vmaps
+echo "      ✓ Vmaps összeállítva!"
+echo ""
+
+echo "[4/4] Mmaps generálása (Mmaps Generator - ez eltarthat egy ideig)..."
+"$MMAP_GENERATOR"
+echo "      ✓ Mmaps generálva!"
+echo ""
+
+echo "=============================================="
+echo "  MINDEN KÉSZ SIKERESEN!"
+echo "  A keletkezett 'dbc', 'maps', 'vmaps' és 'mmaps' mappákat"
+echo "  másold át a szerver 'configs/data/' könyvtárába."
+echo "=============================================="
+`;
+
+                const batContent = `@echo off
+REM ============================================================
+REM  AzerothCore Client Data Extractor (All-in-One - Windows)
+REM  Futtasd ezt a scriptet a WoW 3.3.5a kliens főkönyvtárában!
+REM ============================================================
+
+if not exist "Data" if not exist "data" (
+    echo HIBA: Ugy tunik, nem a WoW kliens fokonyvtaraban vagy.
+    echo Masold be ezt a scriptet es az exportalt toolokat a WoW kliens melle!
+    pause
+    exit /b 1
+)
+
+echo ==============================================
+echo   AzerothCore All-in-One Extractor (Windows)
+echo ==============================================
+echo.
+
+set MAP_EXTRACT_BIN=
+if exist map_extractor.exe (set MAP_EXTRACT_BIN=map_extractor.exe) else (
+    if exist mapextractor.exe (set MAP_EXTRACT_BIN=mapextractor.exe) else (
+        if exist map_extractor (set MAP_EXTRACT_BIN=map_extractor) else (
+            if exist mapextractor (set MAP_EXTRACT_BIN=mapextractor)
+        )
+    )
+)
+
+set VMAP_EXTRACT_BIN=
+if exist vmap4_extractor.exe (set VMAP_EXTRACT_BIN=vmap4_extractor.exe) else (
+    if exist vmap4extractor.exe (set VMAP_EXTRACT_BIN=vmap4extractor.exe) else (
+        if exist vmap4_extractor (set VMAP_EXTRACT_BIN=vmap4_extractor) else (
+            if exist vmap4extractor (set VMAP_EXTRACT_BIN=vmap4extractor)
+        )
+    )
+)
+
+set VMAP_ASSEM_BIN=
+if exist vmap4_assembler.exe (set VMAP_ASSEM_BIN=vmap4_assembler.exe) else (
+    if exist vmap4assembler.exe (set VMAP_ASSEM_BIN=vmap4assembler.exe) else (
+        if exist vmap4_assembler (set VMAP_ASSEM_BIN=vmap4_assembler) else (
+            if exist vmap4assembler (set VMAP_ASSEM_BIN=vmap4assembler)
+        )
+    )
+)
+
+set MMAP_GEN_BIN=
+if exist mmaps_generator.exe (set MMAP_GEN_BIN=mmaps_generator.exe) else (
+    if exist mmaps_generator (set MMAP_GEN_BIN=mmaps_generator)
+)
+
+if "%MAP_EXTRACT_BIN%"=="" (echo HIBA: map_extractor nem talalhato! & pause & exit /b 1)
+if "%VMAP_EXTRACT_BIN%"=="" (echo HIBA: vmap4_extractor nem talalhato! & pause & exit /b 1)
+if "%VMAP_ASSEM_BIN%"=="" (echo HIBA: vmap4_assembler nem talalhato! & pause & exit /b 1)
+if "%MMAP_GEN_BIN%"=="" (echo HIBA: mmaps_generator nem talalhato! & pause & exit /b 1)
+
+echo [1/4] Terkepek kicsomagolasa (Maps/DBC)...
+%MAP_EXTRACT_BIN%
+echo       [OK] Maps es DBC kicsomagolva!
+echo.
+
+echo [2/4] Vmaps kicsomagolasa (Vmaps Extractor)...
+%VMAP_EXTRACT_BIN%
+echo       [OK] Vmaps kicsomagolva!
+echo.
+
+echo [3/4] Vmaps osszeallitasa (Vmaps Assembler)...
+if not exist vmaps mkdir vmaps
+%VMAP_ASSEM_BIN% Buildings vmaps
+echo       [OK] Vmaps osszeallitva!
+echo.
+
+echo [4/4] Mmaps generalasa (Mmaps Generator - ez eltarhat egy ideig)...
+%MMAP_GEN_BIN%
+echo       [OK] Mmaps generalva!
+echo.
+
+echo ==============================================
+echo   MINDEN KESZ SIKERESEN!
+echo   A keletkezett 'dbc', 'maps', 'vmaps' es 'mmaps' mappakat
+echo   masold at a szerver 'configs/data/' konyvtaraba.
+echo ==============================================
+pause
+`;
+                try {
+                    fs.writeFileSync(path.join(toolsDir, 'extractor.sh'), shContent, { mode: 0o755 });
+                    fs.writeFileSync(path.join(toolsDir, 'extractor.bat'), batContent);
+                    exported.push('extractor.sh', 'extractor.bat');
+                } catch (e) {
+                    addSystemLog(`Hiba a segéd-szkriptek generálásakor: ${e.message}`);
+                }
+            }
+
+            const msg = exported.length > 0
+                ? `Exportálva: ${exported.join(', ')}${missing.length ? ` | Nem található: ${missing.join(', ')}` : ''}`
+                : 'Nem találhatók tool binárisok! Előbb végezd el a Teljes Újrafordítást.';
+
+            addSystemLog(`Tool export: ${msg}`);
+            res.writeHead(exported.length > 0 ? 200 : 404, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: exported.length > 0, exported, missing, message: msg }));
+        } catch (err) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ message: `Export hiba: ${err.message}` }));
+        }
+        return;
+    }
     // 404 Not Found
     res.writeHead(404);
     res.end('404 A keresett lap nem található');
 });
+
+// ==========================================================================
+// C++ Modul és Újrafordítás (Rebuild) segédfüggvények
+// ==========================================================================
+
+function hasAdminPassword() {
+    if (process.env.ADMIN_PASSWORD) return true;
+    return fs.existsSync(PASSWORD_FILE);
+}
+
+function getAdminPassword() {
+    if (process.env.ADMIN_PASSWORD) return process.env.ADMIN_PASSWORD;
+    try {
+        if (fs.existsSync(PASSWORD_FILE)) {
+            return fs.readFileSync(PASSWORD_FILE, 'utf8').trim();
+        }
+    } catch (err) {
+        console.error('Hiba a jelszó olvasásakor:', err);
+    }
+    return null;
+}
+
+function setAdminPassword(password) {
+    try {
+        fs.writeFileSync(PASSWORD_FILE, password.trim(), 'utf8');
+        return true;
+    } catch (err) {
+        console.error('Hiba a jelszó írásakor:', err);
+        return false;
+    }
+}
+
+function getSavedModules() {
+    try {
+        if (fs.existsSync(MODULES_CONFIG_FILE)) {
+            const content = fs.readFileSync(MODULES_CONFIG_FILE, 'utf8');
+            return JSON.parse(content) || [];
+        }
+    } catch (err) {
+        console.error('Hiba a modules.json olvasásakor:', err);
+    }
+    return [];
+}
+
+function saveSavedModules(modules) {
+    try {
+        fs.writeFileSync(MODULES_CONFIG_FILE, JSON.stringify(modules, null, 2), 'utf8');
+        return true;
+    } catch (err) {
+        console.error('Hiba a modules.json írásakor:', err);
+        return false;
+    }
+}
+
+function checkRebuildRequired() {
+    const saved = getSavedModules();
+    const actualFolders = [];
+    
+    try {
+        const modulesDir = '/acore/modules';
+        if (fs.existsSync(modulesDir)) {
+            const files = fs.readdirSync(modulesDir);
+            files.forEach(file => {
+                const fullPath = path.join(modulesDir, file);
+                if (fs.statSync(fullPath).isDirectory()) {
+                    if (file !== 'mod-playerbots' && file !== '.' && file !== '..') {
+                        actualFolders.push(file);
+                    }
+                }
+            });
+        }
+    } catch (err) {
+        console.error('Hiba a modules mappa olvasásakor:', err);
+    }
+
+    const savedFolders = saved.map(url => {
+        let name = url.substring(url.lastIndexOf('/') + 1);
+        if (name.endsWith('.git')) name = name.substring(0, name.length - 4);
+        return name;
+    });
+
+    if (savedFolders.length !== actualFolders.length) return true;
+
+    for (const folder of savedFolders) {
+        if (!actualFolders.includes(folder)) return true;
+    }
+
+    return false;
+}
+
+function runCommandAsync(command, args, cwd) {
+    return new Promise((resolve, reject) => {
+        const proc = spawn(command, args, { cwd });
+        proc.on('exit', (code) => {
+            if (code === 0) resolve();
+            else reject(new Error(`${command} hiba! Exit kód: ${code}`));
+        });
+    });
+}
+
+function runCommandWithLogs(command, args, cwd) {
+    return new Promise((resolve, reject) => {
+        const proc = spawn(command, args, { cwd });
+        
+        const handleData = (data) => {
+            data.toString().split('\n').forEach(line => {
+                if (line.trim()) {
+                    addLog('compiler', line);
+                }
+            });
+        };
+
+        proc.stdout.on('data', handleData);
+        proc.stderr.on('data', handleData);
+
+        proc.on('exit', (code) => {
+            if (code === 0) resolve();
+            else reject(new Error(`${command} hiba! Exit kód: ${code}`));
+        });
+    });
+}
+
+function runRebuild(mode) {
+    if (rebuildStatus === 'building') return;
+    rebuildStatus = 'building';
+    mode = mode || 'full';
+    
+    addSystemLog(`Szerver újrafordítás elindult (mód: ${mode}). Szerverek leállítása...`);
+    stopAuthserver();
+    stopWorldserver();
+    
+    // Várunk a folyamatok leállására
+    setTimeout(async () => {
+        try {
+            const saved = getSavedModules();
+            const modulesDir = '/acore/modules';
+            
+            // 1. Git Szinkronizálás
+            addSystemLog('1/3 Fázis: Git modulok szinkronizálása...');
+            
+            const savedMap = saved.map(url => {
+                let name = url.substring(url.lastIndexOf('/') + 1);
+                if (name.endsWith('.git')) name = name.substring(0, name.length - 4);
+                return { url, folder: name };
+            });
+
+            // Törlés
+            if (fs.existsSync(modulesDir)) {
+                const actualFolders = fs.readdirSync(modulesDir).filter(file => {
+                    const fullPath = path.join(modulesDir, file);
+                    return fs.statSync(fullPath).isDirectory() && file !== 'mod-playerbots';
+                });
+
+                for (const folder of actualFolders) {
+                    if (!savedMap.some(item => item.folder === folder)) {
+                        addSystemLog(`Eltávolított modul könyvtárának törlése: ${folder}...`);
+                        fs.rmSync(path.join(modulesDir, folder), { recursive: true, force: true });
+                    }
+                }
+            } else {
+                fs.mkdirSync(modulesDir, { recursive: true });
+            }
+
+            // Letöltés
+            for (const item of savedMap) {
+                const folderPath = path.join(modulesDir, item.folder);
+                if (!fs.existsSync(folderPath)) {
+                    addSystemLog(`Új modul letöltése: ${item.folder} tól ${item.url}...`);
+                    await runCommandAsync('git', ['clone', item.url, folderPath], '/acore');
+                }
+            }
+
+            // 2. CMake Konfiguráció (csak full módban)
+            if (mode === 'full') {
+                addSystemLog('2/3 Fázis: CMake konfiguráció futtatása...');
+                if (!fs.existsSync('/acore/build')) {
+                    fs.mkdirSync('/acore/build', { recursive: true });
+                }
+                await runCommandWithLogs('cmake', ['..', '-DCMAKE_INSTALL_PREFIX=/opt/acore', '-DTOOLS_BUILD=all'], '/acore/build');
+            } else {
+                addSystemLog('2/3 Fázis: CMake kihagyva (make-only mód).');
+            }
+
+            // 3. Make Fordítás & Telepítés
+            addSystemLog('3/3 Fázis: C++ kód fordítása és telepítése (ez eltarthat 10-20 percig)...');
+            const cpuCount = os.cpus().length || 2;
+            await runCommandWithLogs('make', [`-j${cpuCount}`, 'install'], '/acore/build');
+
+            addSystemLog('AZ ÚJRAFORDÍTÁS SIKERESEN BEFEJEZŐDÖTT!');
+            rebuildStatus = 'idle';
+            
+            // Szerverek újraindítása
+            startAuthserver();
+            setTimeout(startWorldserver, 3000);
+
+        } catch (err) {
+            addSystemLog(`HIBA: A fordítási folyamat megszakadt: ${err.message}`);
+            rebuildStatus = 'idle';
+            
+            // Szerverek újraindítása
+            startAuthserver();
+            setTimeout(startWorldserver, 3000);
+        }
+    }, 5000);
+}
 
 // ==========================================================================
 // Rendszerindítás & Leállítás kezelés

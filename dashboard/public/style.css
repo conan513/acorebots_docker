@@ -818,3 +818,204 @@ h1 {
     border-color: var(--gold-primary);
     color: var(--gold-bright);
 }
+
+.terminal-line.compiler-msg {
+    color: #94a3b8;
+}
+
+/* Module Manager Styling */
+.module-list-container {
+    background: rgba(5, 7, 11, 0.7);
+    border: 1px solid rgba(197, 160, 89, 0.15);
+    border-radius: 4px;
+    height: 120px;
+    overflow-y: auto;
+    margin-bottom: 0.75rem;
+    padding: 0.25rem;
+}
+
+.module-list-container::-webkit-scrollbar {
+    width: 6px;
+}
+.module-list-container::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+}
+.module-list-container::-webkit-scrollbar-thumb {
+    background: rgba(197, 160, 89, 0.15);
+    border-radius: 3px;
+}
+
+.module-list {
+    list-style-type: none;
+}
+
+.module-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.4rem 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 0.8rem;
+    color: var(--text-primary);
+}
+
+.module-item:last-child {
+    border-bottom: none;
+}
+
+.module-item.loading {
+    color: var(--text-muted);
+    font-style: italic;
+    justify-content: center;
+}
+
+.module-url {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 220px;
+    display: inline-block;
+    color: var(--gold-bright);
+}
+
+.delete-module-btn {
+    background: transparent;
+    border: none;
+    color: var(--danger-red);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: bold;
+    padding: 0 0.25rem;
+    transition: color 0.2s;
+}
+
+.delete-module-btn:hover {
+    color: #fca5a5;
+    text-shadow: 0 0 4px var(--danger-red);
+}
+
+.module-add-form {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.module-add-form input {
+    flex: 1;
+    background: rgba(5, 7, 11, 0.8);
+    border: 1px solid rgba(197, 160, 89, 0.2);
+    border-radius: 4px;
+    padding: 0.4rem 0.75rem;
+    color: #f1f5f9;
+    font-size: 0.8rem;
+    transition: all 0.3s;
+}
+
+.module-add-form input:focus {
+    border-color: var(--arcane-blue);
+    outline: none;
+}
+
+.module-add-form button {
+    padding: 0.4rem 0.85rem;
+    font-size: 1rem;
+    font-weight: bold;
+}
+
+.module-rebuild-container {
+    margin-top: 1rem;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px dashed rgba(239, 68, 68, 0.4);
+    border-radius: 4px;
+    padding: 0.85rem;
+    text-align: center;
+}
+
+.rebuild-warning-text {
+    font-size: 0.75rem;
+    color: #fca5a5;
+    margin-bottom: 0.6rem;
+    line-height: 1.3;
+}
+
+/* =============================================
+   Build Card Styles
+   ============================================= */
+
+.build-card {
+    border-color: rgba(196, 164, 82, 0.3);
+}
+
+.build-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.build-desc {
+    font-size: 0.78rem;
+    color: #9ca3af;
+    line-height: 1.5;
+}
+
+.build-steps {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    flex-wrap: wrap;
+    background: rgba(0,0,0,0.2);
+    border-radius: 6px;
+    padding: 0.6rem 0.8rem;
+}
+
+.build-step {
+    font-size: 0.7rem;
+    color: #6b7280;
+    font-family: 'Courier New', monospace;
+    padding: 0.2rem 0.4rem;
+    border-radius: 3px;
+    transition: all 0.4s ease;
+}
+
+.build-step.active-step {
+    color: #c4a452;
+    background: rgba(196, 164, 82, 0.15);
+    box-shadow: 0 0 8px rgba(196, 164, 82, 0.3);
+    font-weight: bold;
+}
+
+.build-step-arrow {
+    color: #374151;
+    font-size: 0.75rem;
+}
+
+.build-buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.build-buttons .wow-btn {
+    font-size: 0.78rem;
+    padding: 0.55rem 0.8rem;
+}
+
+.build-progress-container {
+    height: 4px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.build-progress-bar {
+    height: 100%;
+    width: 30%;
+    background: linear-gradient(90deg, #c4a452, #f0d080, #c4a452);
+    background-size: 200% 100%;
+    border-radius: 2px;
+    animation: buildProgress 1.8s linear infinite;
+}
+
+@keyframes buildProgress {
+    0%   { background-position: 200% 0; transform: translateX(-100%); }
+    100% { background-position: 0% 0;   transform: translateX(500%); }
+}
+

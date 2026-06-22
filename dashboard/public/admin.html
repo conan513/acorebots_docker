@@ -15,8 +15,10 @@
     <!-- Login Overlay -->
     <div id="login-overlay" class="login-overlay">
         <div class="wow-card login-card">
-            <h2 class="card-title text-center">Gépész Bejelentkezés</h2>
-            <p class="card-desc text-center">Add meg a titkos adminisztrátori jelszót a szerver kezeléséhez.</p>
+            <h2 class="card-title text-center" id="login-card-title">Gépész Bejelentkezés</h2>
+            <p class="card-desc text-center" id="login-card-desc">Add meg a titkos adminisztrátori jelszót a szerver kezeléséhez.</p>
+            
+            <!-- Login Form -->
             <form id="login-form" autocomplete="off">
                 <div class="input-group">
                     <label for="admin-password">Adminisztrátor Jelszó</label>
@@ -24,6 +26,20 @@
                 </div>
                 <button type="submit" id="btn-login" class="wow-btn wow-btn-primary full-width">Belépés</button>
             </form>
+
+            <!-- Setup Form (Első indítás) -->
+            <form id="setup-form" class="hidden" autocomplete="off">
+                <div class="input-group">
+                    <label for="setup-password">Új Adminisztrátor Jelszó</label>
+                    <input type="password" id="setup-password" required minlength="6" placeholder="Legalább 6 karakter...">
+                </div>
+                <div class="input-group">
+                    <label for="setup-password-confirm">Jelszó Megerősítése</label>
+                    <input type="password" id="setup-password-confirm" required minlength="6" placeholder="Jelszó újra...">
+                </div>
+                <button type="submit" id="btn-setup" class="wow-btn wow-btn-primary full-width">Mentés & Belépés</button>
+            </form>
+
             <div id="login-message" class="message-box hidden error"></div>
             <div class="back-to-portal-container">
                 <a href="/" class="admin-link">&larr; Vissza a Játékos Portálra</a>
@@ -124,6 +140,68 @@
                         <button onclick="controlProcess('worldserver', 'start')" class="wow-btn wow-btn-success btn-start" id="btn-world-start">Indítás</button>
                         <button onclick="controlProcess('worldserver', 'stop')" class="wow-btn wow-btn-danger btn-stop" id="btn-world-stop">Leállítás</button>
                         <button onclick="controlProcess('worldserver', 'restart')" class="wow-btn wow-btn-secondary btn-restart" id="btn-world-restart">Restart</button>
+                    </div>
+                </div>
+
+                <!-- C++ Modul Kezelő Kártya -->
+                <div class="process-card" id="card-modules">
+                    <div class="card-header-status">
+                        <h3>C++ Modul Kezelő</h3>
+                        <span class="status-badge-inline" id="module-status-badge">
+                            <span class="status-dot online" id="module-status-dot"></span>
+                            <span class="status-lbl" id="module-status-lbl">Kész</span>
+                        </span>
+                    </div>
+                    <div class="module-manager-body">
+                        <!-- Modul lista -->
+                        <div class="module-list-container">
+                            <ul class="module-list" id="module-list">
+                                <li class="module-item loading">Modulok betöltése...</li>
+                            </ul>
+                        </div>
+                        
+                        <!-- Új modul felvétele -->
+                        <form id="add-module-form" class="module-add-form" autocomplete="off">
+                            <input type="text" id="new-module-url" placeholder="Git URL (https://github.com/...)" required>
+                            <button type="submit" class="wow-btn wow-btn-secondary" id="btn-add-module">+</button>
+                        </form>
+                    </div>
+                    <div class="module-rebuild-container hidden" id="rebuild-warning-box">
+                        <p class="rebuild-warning-text">Módosítás történt. Újrafordítás szükséges!</p>
+                    </div>
+                </div>
+
+                <!-- Server Build Kártya -->
+                <div class="process-card build-card" id="card-build">
+                    <div class="card-header-status">
+                        <h3>⚙️ Szerver Build</h3>
+                        <span class="status-badge-inline" id="build-status-badge">
+                            <span class="status-dot online" id="build-status-dot"></span>
+                            <span class="status-lbl" id="build-status-lbl">Kész</span>
+                        </span>
+                    </div>
+                    <div class="build-card-body">
+                        <p class="build-desc">CMake újragenerálástól teljes fordítás és telepítés. A szerverek automatikusan leállnak majd újraindulnak.</p>
+                        <div class="build-steps">
+                            <span class="build-step" id="bstep-1">1. Szerverek leállítása</span>
+                            <span class="build-step-arrow">→</span>
+                            <span class="build-step" id="bstep-2">2. CMake generate</span>
+                            <span class="build-step-arrow">→</span>
+                            <span class="build-step" id="bstep-3">3. make install</span>
+                            <span class="build-step-arrow">→</span>
+                            <span class="build-step" id="bstep-4">4. Újraindítás</span>
+                        </div>
+                        <div class="action-buttons build-buttons">
+                            <button onclick="triggerRebuild('full')" class="wow-btn wow-btn-primary" id="btn-trigger-rebuild" style="flex:2">
+                                🔨 Teljes Újrafordítás (cmake + make)
+                            </button>
+                            <button onclick="triggerRebuild('make-only')" class="wow-btn wow-btn-secondary" id="btn-trigger-make" style="flex:1">
+                                ⚡ Csak make install
+                            </button>
+                        </div>
+                        <div id="build-progress-bar-container" class="build-progress-container hidden">
+                            <div class="build-progress-bar" id="build-progress-bar"></div>
+                        </div>
                     </div>
                 </div>
             </aside>

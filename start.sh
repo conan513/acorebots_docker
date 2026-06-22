@@ -20,6 +20,7 @@ mysql -uroot -e "GRANT ALL PRIVILEGES ON *.* TO 'acore'@'%'; FLUSH PRIVILEGES;"
 echo "[ACORE] Config szinkronizálás indul..."
 
 mkdir -p "$HOST_CONFIG_DIR"
+mkdir -p "$HOST_CONFIG_DIR/data"
 mkdir -p "$CONTAINER_CONFIG_DIR"
 
 # 1) DIST fájlok másolása ideiglenes helyre
@@ -65,6 +66,7 @@ sed -i 's/^LoginDatabaseInfo.*/LoginDatabaseInfo = "127.0.0.1;3310;acore;acorepa
 sed -i 's/^LoginDatabaseInfo.*/LoginDatabaseInfo = "127.0.0.1;3310;acore;acorepass;acore_auth"/' "$HOST_CONFIG_DIR/worldserver.conf"
 sed -i 's/^WorldDatabaseInfo.*/WorldDatabaseInfo = "127.0.0.1;3310;acore;acorepass;acore_world"/' "$HOST_CONFIG_DIR/worldserver.conf"
 sed -i 's/^CharacterDatabaseInfo.*/CharacterDatabaseInfo = "127.0.0.1;3310;acore;acorepass;acore_characters"/' "$HOST_CONFIG_DIR/worldserver.conf"
+sed -i 's/^DataDir.*/DataDir = "\/host-configs\/data"/' "$HOST_CONFIG_DIR/worldserver.conf"
 
 # 5) Playerbots config szinkronizálása
 echo "[ACORE] Playerbots config szinkronizálása..."
@@ -89,6 +91,9 @@ if [ -f "$PLAYERBOTS_DIST" ]; then
             echo "$line" >> "$PLAYERBOTS_HOST"
         fi
     done
+
+    # DB sorok felülírása a playerbots configban
+    sed -i 's/^PlayerbotsDatabaseInfo.*/PlayerbotsDatabaseInfo = "127.0.0.1;3310;acore;acorepass;acore_playerbots"/' "$PLAYERBOTS_HOST"
 
     cp "$PLAYERBOTS_HOST" "$PLAYERBOTS_CONTAINER"
 else

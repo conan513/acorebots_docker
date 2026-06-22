@@ -39,36 +39,117 @@ window.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         login();
     });
+
+    // Setup form submit
+    const setupForm = document.getElementById('setup-form');
+    if (setupForm) {
+        setupForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            setupPassword();
+        });
+    }
+
+    // Modul hozzáadása form submit
+    const addModuleForm = document.getElementById('add-module-form');
+    if (addModuleForm) {
+        addModuleForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            addModule();
+        });
+    }
 });
 
 // Hitelesítés ellenőrzése
 function checkAuth() {
     fetch('/api/admin/check-auth')
-        .then(res => {
-            if (res.ok) {
+        .then(res => res.json())
+        .then(data => {
+            if (data.authenticated) {
                 showAdminPanel();
             } else {
-                showLoginOverlay();
+                showLoginOverlay(data.setupRequired);
             }
         })
         .catch(() => {
-            showLoginOverlay();
+            showLoginOverlay(false);
         });
 }
 
-function showLoginOverlay() {
+function showLoginOverlay(setupRequired) {
     document.getElementById('login-overlay').classList.remove('hidden');
     document.getElementById('admin-content').classList.add('hidden');
     if (sseSource) {
         sseSource.close();
         sseSource = null;
     }
+
+    const title = document.getElementById('login-card-title');
+    const desc = document.getElementById('login-card-desc');
+    const loginFm = document.getElementById('login-form');
+    const setupFm = document.getElementById('setup-form');
+
+    if (setupRequired) {
+        title.textContent = 'Első Indítás: Admin Jelszó';
+        desc.textContent = 'Adj meg egy biztonságos rendszergazda jelszót a szerver kezelőfelületéhez.';
+        loginFm.classList.add('hidden');
+        setupFm.classList.remove('hidden');
+    } else {
+        title.textContent = 'Gépész Bejelentkezés';
+        desc.textContent = 'Add meg a titkos adminisztrátori jelszót a szerver kezeléséhez.';
+        loginFm.classList.remove('hidden');
+        setupFm.classList.add('hidden');
+    }
+}
+
+// Első indítási jelszó mentés
+function setupPassword() {
+    const password = document.getElementById('setup-password').value;
+    const confirm = document.getElementById('setup-password-confirm').value;
+    const messageBox = document.getElementById('login-message');
+    const submitBtn = document.getElementById('btn-setup');
+
+    messageBox.classList.add('hidden');
+
+    if (password !== confirm) {
+        messageBox.classList.remove('hidden');
+        messageBox.textContent = 'A megadott jelszavak nem egyeznek!';
+        return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Mentés...';
+
+    fetch('/api/admin/setup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+    })
+    .then(async (res) => {
+        if (res.ok) {
+            document.getElementById('setup-password').value = '';
+            document.getElementById('setup-password-confirm').value = '';
+            showAdminPanel();
+        } else {
+            const data = await res.json();
+            messageBox.classList.remove('hidden');
+            messageBox.textContent = data.message || 'Hiba történt a mentés során!';
+        }
+    })
+    .catch(() => {
+        messageBox.classList.remove('hidden');
+        messageBox.textContent = 'Kapcsolódási hiba!';
+    })
+    .finally(() => {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Mentés & Belépés';
+    });
 }
 
 function showAdminPanel() {
     document.getElementById('login-overlay').classList.add('hidden');
     document.getElementById('admin-content').classList.remove('hidden');
     initAdminStream();
+    loadModules();
 }
 
 // Bejelentkezés
@@ -131,6 +212,9 @@ function initAdminStream() {
         updateProcessUI('mysql', stats.mysql);
         updateProcessUI('authserver', stats.authserver);
         updateProcessUI('worldserver', stats.worldserver);
+        
+        // Modul újrafordítás státuszának szinkronizálása
+        updateRebuildUI(stats.rebuildStatus);
     });
 
     // Kezdeti log history fogadása
@@ -246,12 +330,15 @@ function appendLogLine(log) {
         line.classList.add('system-msg');
     } else if (log.service === 'input') {
         line.classList.add('input-msg');
+    } else if (log.service === 'compiler') {
+        line.classList.add('compiler-msg');
     }
 
     // Időbélyeg hozzáadása, ha van
     const timeStr = log.time ? `[${log.time}] ` : '';
     const prefix = log.service === 'world' ? '[World] ' : 
-                   log.service === 'auth' ? '[Auth] ' : '';
+                   log.service === 'auth' ? '[Auth] ' : 
+                   log.service === 'compiler' ? '[Compiler] ' : '';
                    
     line.textContent = `${timeStr}${prefix}${log.text}`;
 
@@ -402,4 +489,220 @@ function controlProcess(service, action) {
         });
         scrollToBottom();
     });
+}
+
+// ==========================================================================
+// C++ Modul Kezelő & Fordítás Logic
+// ==========================================================================
+
+// Modulok betöltése a szerverről
+function loadModules() {
+    const list = document.getElementById('module-list');
+    if (!list) return;
+
+    fetch('/api/admin/modules')
+        .then(res => res.json())
+        .then(data => {
+            list.innerHTML = '';
+            if (!data.modules || data.modules.length === 0) {
+                list.innerHTML = '<li class="module-item loading">Nincs egyedi modul telepítve.</li>';
+            } else {
+                data.modules.forEach(mod => {
+                    const li = document.createElement('li');
+                    li.className = 'module-item';
+                    
+                    const name = getModuleName(mod);
+                    li.innerHTML = `
+                        <span class="module-url" title="${mod}">${name}</span>
+                        <button onclick="deleteModule('${mod}')" class="delete-module-btn" title="Törlés">&times;</button>
+                    `;
+                    list.appendChild(li);
+                });
+            }
+
+            // Újrafordítás figyelmeztetés
+            const warningBox = document.getElementById('rebuild-warning-box');
+            if (data.rebuildRequired) {
+                warningBox.classList.remove('hidden');
+            } else {
+                warningBox.classList.add('hidden');
+            }
+        })
+        .catch(() => {
+            list.innerHTML = '<li class="module-item loading error">Hiba a modulok lekérésekor!</li>';
+        });
+}
+
+// Modulnév kinyerése a Git URL-ből
+function getModuleName(url) {
+    if (!url) return '';
+    const parts = url.split('/');
+    let last = parts[parts.length - 1];
+    if (last.endsWith('.git')) {
+        last = last.substring(0, last.length - 4);
+    }
+    return last;
+}
+
+// Új modul hozzáadása
+function addModule() {
+    const input = document.getElementById('new-module-url');
+    const url = input.value.trim();
+    if (!url) return;
+
+    input.disabled = true;
+
+    fetch('/api/admin/modules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'add', url })
+    })
+    .then(async (res) => {
+        if (res.ok) {
+            input.value = '';
+            loadModules();
+        } else {
+            const data = await res.json();
+            alert(data.message || 'Hiba a modul hozzáadásakor!');
+        }
+    })
+    .catch(() => {
+        alert('Szerver kapcsolódási hiba!');
+    })
+    .finally(() => {
+        input.disabled = false;
+    });
+}
+
+// Modul törlése
+function deleteModule(url) {
+    if (!confirm(`Biztosan eltávolítod a(z) "${getModuleName(url)}" modult?`)) return;
+
+    fetch('/api/admin/modules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', url })
+    })
+    .then(async (res) => {
+        if (res.ok) {
+            loadModules();
+        } else {
+            const data = await res.json();
+            alert(data.message || 'Hiba a modul törlésekor!');
+        }
+    })
+    .catch(() => {
+        alert('Szerver kapcsolódási hiba!');
+    });
+}
+
+// Újrafordítás indítása
+function triggerRebuild(mode) {
+    mode = mode || 'full';
+    const modeLabel = mode === 'make-only' ? 'make install (cmake nélkül)' : 'teljes (cmake + make)';
+    if (!confirm(`Figyelem: A szerver újrafordítása (${modeLabel}) leállítja a játékot, és 10-20 percet vehet igénybe. Elindítod?`)) return;
+
+    setBuildingState(true);
+
+    fetch('/api/admin/rebuild', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode })
+    })
+        .then(async (res) => {
+            if (res.ok) {
+                appendLogLine({
+                    time: new Date().toLocaleTimeString(),
+                    service: 'system',
+                    text: `[Újrafordítás] ${modeLabel} módban elindítva. A logok a konzolon követhetők!`
+                });
+                scrollToBottom();
+            } else {
+                const data = await res.json();
+                alert(data.message || 'Nem sikerült elindítani a fordítást.');
+                setBuildingState(false);
+                loadModules();
+            }
+        })
+        .catch(() => {
+            alert('Kapcsolódási hiba!');
+            setBuildingState(false);
+            loadModules();
+        });
+}
+
+function disableServerControlButtons(disable) {
+    const names = ['auth', 'world'];
+    names.forEach(name => {
+        const btnStart = document.getElementById(`btn-${name}-start`);
+        const btnStop = document.getElementById(`btn-${name}-stop`);
+        const btnRestart = document.getElementById(`btn-${name}-restart`);
+        if (btnStart) btnStart.disabled = disable;
+        if (btnStop) btnStop.disabled = disable;
+        if (btnRestart) btnRestart.disabled = disable;
+    });
+}
+
+function setBuildingState(isBuilding) {
+    const btnRebuild = document.getElementById('btn-trigger-rebuild');
+    const btnMake    = document.getElementById('btn-trigger-make');
+    const dot        = document.getElementById('build-status-dot');
+    const lbl        = document.getElementById('build-status-lbl');
+    const modDot     = document.getElementById('module-status-dot');
+    const modLbl     = document.getElementById('module-status-lbl');
+    const progBar    = document.getElementById('build-progress-bar-container');
+
+    if (isBuilding) {
+        if (btnRebuild) { btnRebuild.disabled = true;  btnRebuild.textContent = 'Fordítás...'; }
+        if (btnMake)    { btnMake.disabled    = true;  btnMake.textContent    = 'Fordítás...'; }
+        if (dot) dot.className = 'status-dot starting';
+        if (lbl) lbl.textContent = 'Fordítás folyamatban';
+        if (modDot) modDot.className = 'status-dot starting';
+        if (modLbl) modLbl.textContent = 'Fordítás...';
+        if (progBar) progBar.classList.remove('hidden');
+        disableServerControlButtons(true);
+        animateBuildSteps(true);
+    } else {
+        if (btnRebuild) { btnRebuild.disabled = false; btnRebuild.innerHTML = '🔨 Teljes Újrafordítás (cmake + make)'; }
+        if (btnMake)    { btnMake.disabled    = false; btnMake.innerHTML    = '⚡ Csak make install'; }
+        if (dot) dot.className = 'status-dot online';
+        if (lbl) lbl.textContent = 'Kész';
+        if (modDot) modDot.className = 'status-dot online';
+        if (modLbl) modLbl.textContent = 'Kész';
+        if (progBar) progBar.classList.add('hidden');
+        disableServerControlButtons(false);
+        animateBuildSteps(false);
+        loadModules();
+    }
+}
+
+let buildStepTimer = null;
+function animateBuildSteps(active) {
+    const steps = ['bstep-1','bstep-2','bstep-3','bstep-4'];
+    steps.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.remove('active-step');
+    });
+    if (buildStepTimer) { clearInterval(buildStepTimer); buildStepTimer = null; }
+    if (!active) return;
+    let i = 0;
+    buildStepTimer = setInterval(() => {
+        steps.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.classList.remove('active-step');
+        });
+        const el = document.getElementById(steps[i % steps.length]);
+        if (el) el.classList.add('active-step');
+        i++;
+    }, 4000);
+}
+
+function updateRebuildUI(status) {
+    // A setBuildingState-et hívjuk SSE-ből is
+    const wasBuilding = document.getElementById('btn-trigger-rebuild')?.disabled;
+    if (status === 'building' && !wasBuilding) {
+        setBuildingState(true);
+    } else if (status !== 'building' && wasBuilding) {
+        setBuildingState(false);
+    }
 }
