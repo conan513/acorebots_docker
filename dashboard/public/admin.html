@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AzerothCore - Adminisztráció</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Outfit:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="admin-body">
+    <div class="glow-container"></div>
+
+    <!-- Login Overlay -->
+    <div id="login-overlay" class="login-overlay">
+        <div class="wow-card login-card">
+            <h2 class="card-title text-center">Gépész Bejelentkezés</h2>
+            <p class="card-desc text-center">Add meg a titkos adminisztrátori jelszót a szerver kezeléséhez.</p>
+            <form id="login-form" autocomplete="off">
+                <div class="input-group">
+                    <label for="admin-password">Adminisztrátor Jelszó</label>
+                    <input type="password" id="admin-password" required placeholder="••••••••">
+                </div>
+                <button type="submit" id="btn-login" class="wow-btn wow-btn-primary full-width">Belépés</button>
+            </form>
+            <div id="login-message" class="message-box hidden error"></div>
+            <div class="back-to-portal-container">
+                <a href="/" class="admin-link">&larr; Vissza a Játékos Portálra</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Panel Layout -->
+    <div id="admin-content" class="admin-container hidden">
+        <header class="admin-header">
+            <div class="header-left">
+                <h1>Szerver Vezérlőpult</h1>
+                <p class="subtitle">AzerothCore Rendszerkezelés</p>
+            </div>
+            <div class="header-right">
+                <div class="host-info">
+                    <span>Host Állapot: <strong class="highlight">Aktív</strong></span>
+                    <button onclick="logout()" class="wow-btn wow-btn-secondary" id="btn-logout">Kijelentkezés</button>
+                </div>
+            </div>
+        </header>
+
+        <div class="admin-grid">
+            <!-- Bal oldal: Szerverek / Folyamatok Kezelése -->
+            <aside class="control-panel">
+                <h2 class="section-title">Szerver Státusz & Vezérlés</h2>
+                
+                <!-- MySQL Kártya -->
+                <div class="process-card" id="card-mysql">
+                    <div class="card-header-status">
+                        <h3>MySQL Adatbázis</h3>
+                        <span class="status-badge-inline"><span class="status-dot offline"></span><span class="status-lbl">Offline</span></span>
+                    </div>
+                    <div class="stats-row">
+                        <div class="stat-box">
+                            <span class="stat-label">CPU Használat</span>
+                            <div class="progress-bar-container">
+                                <div class="progress-bar" id="mysql-cpu-bar" style="width: 0%"></div>
+                            </div>
+                            <span class="stat-value" id="mysql-cpu-val">0.0%</span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-label">Memória (RAM)</span>
+                            <span class="stat-value" id="mysql-ram-val">0 MB</span>
+                        </div>
+                    </div>
+                    <div class="action-buttons disabled-actions">
+                        <span class="note-text">Rendszer által felügyelt</span>
+                    </div>
+                </div>
+
+                <!-- Authserver Kártya -->
+                <div class="process-card" id="card-authserver">
+                    <div class="card-header-status">
+                        <h3>Authserver (Hitelesítő)</h3>
+                        <span class="status-badge-inline"><span class="status-dot offline"></span><span class="status-lbl">Offline</span></span>
+                    </div>
+                    <div class="stats-row">
+                        <div class="stat-box">
+                            <span class="stat-label">CPU Használat</span>
+                            <div class="progress-bar-container">
+                                <div class="progress-bar" id="authserver-cpu-bar" style="width: 0%"></div>
+                            </div>
+                            <span class="stat-value" id="authserver-cpu-val">0.0%</span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-label">Memória (RAM)</span>
+                            <span class="stat-value" id="authserver-ram-val">0 MB</span>
+                        </div>
+                    </div>
+                    <div class="action-buttons">
+                        <button onclick="controlProcess('authserver', 'start')" class="wow-btn wow-btn-success btn-start" id="btn-auth-start">Indítás</button>
+                        <button onclick="controlProcess('authserver', 'stop')" class="wow-btn wow-btn-danger btn-stop" id="btn-auth-stop">Leállítás</button>
+                        <button onclick="controlProcess('authserver', 'restart')" class="wow-btn wow-btn-secondary btn-restart" id="btn-auth-restart">Restart</button>
+                    </div>
+                </div>
+
+                <!-- Worldserver Kártya -->
+                <div class="process-card" id="card-worldserver">
+                    <div class="card-header-status">
+                        <h3>Worldserver (Játékvilág)</h3>
+                        <span class="status-badge-inline"><span class="status-dot offline"></span><span class="status-lbl">Offline</span></span>
+                    </div>
+                    <div class="stats-row">
+                        <div class="stat-box">
+                            <span class="stat-label">CPU Használat</span>
+                            <div class="progress-bar-container">
+                                <div class="progress-bar" id="worldserver-cpu-bar" style="width: 0%"></div>
+                            </div>
+                            <span class="stat-value" id="worldserver-cpu-val">0.0%</span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-label">Memória (RAM)</span>
+                            <span class="stat-value" id="worldserver-ram-val">0 MB</span>
+                        </div>
+                    </div>
+                    <div class="action-buttons">
+                        <button onclick="controlProcess('worldserver', 'start')" class="wow-btn wow-btn-success btn-start" id="btn-world-start">Indítás</button>
+                        <button onclick="controlProcess('worldserver', 'stop')" class="wow-btn wow-btn-danger btn-stop" id="btn-world-stop">Leállítás</button>
+                        <button onclick="controlProcess('worldserver', 'restart')" class="wow-btn wow-btn-secondary btn-restart" id="btn-world-restart">Restart</button>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Jobb oldal: Konzolos Napló és Parancsküldés -->
+            <main class="console-panel">
+                <div class="console-header">
+                    <h2 class="section-title">Interaktív GM Konzol</h2>
+                    <div class="console-filters">
+                        <button onclick="filterLogs('all')" class="filter-btn active" id="filter-all">Összes</button>
+                        <button onclick="filterLogs('world')" class="filter-btn" id="filter-world">Worldserver</button>
+                        <button onclick="filterLogs('auth')" class="filter-btn" id="filter-auth">Authserver</button>
+                    </div>
+                </div>
+
+                <!-- Terminál Kijelző -->
+                <div class="terminal-wrapper">
+                    <div class="terminal-body" id="terminal-output">
+                        <div class="terminal-line system-msg">[Rendszer] Csatlakozás a szerver naplófolyamához...</div>
+                    </div>
+                </div>
+
+                <!-- Parancsküldő mező -->
+                <form id="console-form" autocomplete="off" class="console-input-container">
+                    <span class="console-prompt">&gt;</span>
+                    <input type="text" id="console-input" placeholder="Írj be egy GM parancsot (pl. .server info vagy .reload all) és nyomj Entert..." disabled>
+                    <button type="submit" class="wow-btn wow-btn-primary" id="btn-send-command" disabled>Küldés</button>
+                </form>
+
+                <!-- Gyors Parancsok Gombjai -->
+                <div class="quick-commands">
+                    <span class="quick-lbl">Gyorsparancsok:</span>
+                    <button onclick="sendQuickCommand('.server info')" class="quick-cmd-btn" id="qcmd-info">Szerver Infó</button>
+                    <button onclick="sendQuickCommand('.server status')" class="quick-cmd-btn" id="qcmd-status">Szerver Státusz</button>
+                    <button onclick="sendQuickCommand('.reload all')" class="quick-cmd-btn" id="qcmd-reload">Konfiguráció Újratöltése</button>
+                    <button onclick="sendQuickCommand('.account create ')" class="quick-cmd-btn" id="qcmd-acc">Fiók Készítés</button>
+                </div>
+            </main>
+        </div>
+        
+        <footer class="admin-footer">
+            <a href="/" class="admin-link">&larr; Vissza a Játékos Portálra</a>
+            <p>&copy; 2026 AzerothCore Rendszerkezelő. Fejlesztette: Antigravity</p>
+        </footer>
+    </div>
+
+    <script src="admin.js"></script>
+</body>
+</html>

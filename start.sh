@@ -101,8 +101,5 @@ cp "$HOST_CONFIG_DIR/worldserver.conf" "$CONTAINER_CONFIG_DIR/worldserver.conf"
 
 echo "[ACORE] Config szinkronizálás kész."
 
-echo "[ACORE] Authserver indítása..."
-/opt/acore/bin/authserver &
-
-echo "[ACORE] Worldserver indítása..."
-/opt/acore/bin/worldserver
+echo "[ACORE] Webes vezérlőpult indítása (ez irányítja majd az Auth és World szervereket)..."
+exec node /opt/dashboard/server.js

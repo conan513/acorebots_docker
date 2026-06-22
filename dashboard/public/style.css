@@ -1,0 +1,820 @@
+/* ==========================================================================
+   WoW-themed Dark Fantasy CSS Style System
+   ========================================================================== */
+
+/* Global Reset & Base Styling */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --bg-dark: #080a0f;
+    --bg-panel: rgba(18, 22, 34, 0.85);
+    --bg-panel-solid: #121622;
+    --gold-primary: #c5a059;
+    --gold-bright: #f3e9d2;
+    --gold-glow: rgba(197, 160, 89, 0.35);
+    --gold-border: rgba(197, 160, 89, 0.25);
+    --text-primary: #cbd5e1;
+    --text-muted: #64748b;
+    --success-green: #10b981;
+    --danger-red: #ef4444;
+    --warning-yellow: #f59e0b;
+    --arcane-blue: #6366f1;
+}
+
+body {
+    font-family: 'Outfit', sans-serif;
+    background: radial-gradient(circle at 50% 30%, #131a2c 0%, #07090e 100%) fixed;
+    color: var(--text-primary);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    overflow-x: hidden;
+}
+
+/* Ambient Glow Elements */
+.glow-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 0;
+    background: 
+        radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.05) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(197, 160, 89, 0.05) 0%, transparent 40%);
+}
+
+/* Container & Layout */
+.portal-container, .admin-container {
+    width: 100%;
+    max-width: 1200px;
+    margin: 2rem auto;
+    padding: 0 1.5rem;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.portal-body {
+    align-items: center;
+}
+
+.admin-body {
+    align-items: stretch;
+    padding: 1rem 0;
+}
+
+/* Typography */
+h1, h2, h3, .card-title, .section-title {
+    font-family: 'Cinzel', serif;
+    color: var(--gold-bright);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9), 0 0 8px var(--gold-glow);
+}
+
+h1 {
+    font-size: 2.8rem;
+    font-weight: 800;
+    text-align: center;
+}
+
+.portal-header {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.portal-header .subtitle, .admin-header .subtitle {
+    font-family: 'Marcellus', serif;
+    color: var(--gold-primary);
+    font-size: 1.1rem;
+    letter-spacing: 0.1em;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+/* Status Badges */
+.status-badge {
+    margin-top: 1rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 1.25rem;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid var(--gold-border);
+    border-radius: 50px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.status-dot.online {
+    background: var(--success-green);
+    box-shadow: 0 0 8px var(--success-green), 0 0 15px var(--success-green);
+}
+
+.status-dot.offline {
+    background: var(--danger-red);
+    box-shadow: 0 0 8px var(--danger-red), 0 0 15px var(--danger-red);
+}
+
+.status-dot.starting {
+    background: var(--warning-yellow);
+    box-shadow: 0 0 8px var(--warning-yellow), 0 0 15px var(--warning-yellow);
+    animation: pulse 1.5s infinite alternate;
+}
+
+@keyframes pulse {
+    0% { opacity: 0.4; }
+    100% { opacity: 1; }
+}
+
+.status-text {
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    color: #f8fafc;
+}
+
+/* Grid Layouts */
+.portal-grid {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 2rem;
+    width: 100%;
+}
+
+@media (max-width: 768px) {
+    .portal-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Cards & Panels */
+.wow-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--gold-border);
+    border-radius: 6px;
+    padding: 2.25rem;
+    position: relative;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6), inset 0 0 25px rgba(197, 160, 89, 0.03);
+    backdrop-filter: blur(12px);
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.wow-card:hover {
+    border-color: rgba(197, 160, 89, 0.5);
+    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.7), inset 0 0 35px rgba(197, 160, 89, 0.05);
+}
+
+/* WoW Card Corner Elements (Decorative) */
+.wow-card::before, .wow-card::after {
+    content: '';
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    border: 1px solid var(--gold-primary);
+    pointer-events: none;
+}
+.wow-card::before {
+    top: 4px;
+    left: 4px;
+    border-right: none;
+    border-bottom: none;
+}
+.wow-card::after {
+    bottom: 4px;
+    right: 4px;
+    border-left: none;
+    border-top: none;
+}
+
+.card-title {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(197, 160, 89, 0.15);
+    padding-bottom: 0.75rem;
+}
+
+.card-desc {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    margin-bottom: 1.5rem;
+}
+
+/* Forms & Input fields */
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+    text-align: left;
+}
+
+.input-group label {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--gold-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.input-group input {
+    background: rgba(7, 9, 14, 0.8);
+    border: 1px solid rgba(197, 160, 89, 0.3);
+    border-radius: 4px;
+    padding: 0.75rem 1rem;
+    color: #f1f5f9;
+    font-family: 'Outfit', sans-serif;
+    font-size: 1rem;
+    transition: all 0.3s;
+}
+
+.input-group input:focus {
+    border-color: var(--arcane-blue);
+    box-shadow: 0 0 10px rgba(99, 102, 241, 0.3);
+    outline: none;
+}
+
+.input-group small {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    margin-top: 0.25rem;
+}
+
+/* Buttons */
+.wow-btn {
+    font-family: 'Cinzel', serif;
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 0.75rem 1.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.wow-btn-primary {
+    background: linear-gradient(135deg, #8B1D1D 0%, #4E0E0E 100%);
+    border: 1px solid var(--gold-primary);
+    color: var(--gold-bright);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.wow-btn-primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, #a82727 0%, #681212 100%);
+    box-shadow: 0 6px 18px rgba(197, 160, 89, 0.3);
+    transform: translateY(-1px);
+}
+
+.wow-btn-secondary {
+    background: linear-gradient(135deg, #1b2234 0%, #0d111b 100%);
+    border: 1px solid var(--gold-border);
+    color: var(--gold-primary);
+}
+
+.wow-btn-secondary:hover:not(:disabled) {
+    border-color: var(--gold-primary);
+    color: var(--gold-bright);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.wow-btn-success {
+    background: linear-gradient(135deg, #0e5c33 0%, #06381e 100%);
+    border: 1px solid var(--gold-primary);
+    color: #e2fceb;
+}
+
+.wow-btn-success:hover:not(:disabled) {
+    background: linear-gradient(135deg, #127a44 0%, #0a4d29 100%);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.wow-btn-danger {
+    background: linear-gradient(135deg, #7c1a1a 0%, #460f0f 100%);
+    border: 1px solid var(--gold-primary);
+    color: #fde8e8;
+}
+
+.wow-btn-danger:hover:not(:disabled) {
+    background: linear-gradient(135deg, #a32222 0%, #631515 100%);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.wow-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.full-width {
+    width: 100%;
+}
+
+/* Message boxes */
+.message-box {
+    margin-top: 1rem;
+    padding: 0.75rem 1rem;
+    border-radius: 4px;
+    font-size: 0.95rem;
+    font-weight: 500;
+}
+
+.message-box.success {
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid var(--success-green);
+    color: #6ee7b7;
+}
+
+.message-box.error {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid var(--danger-red);
+    color: #fca5a5;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* Info items & Guide */
+.info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.85rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.info-item:last-of-type {
+    border-bottom: none;
+}
+
+.info-label {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+}
+
+.info-val {
+    font-weight: 600;
+}
+
+.info-val.highlight {
+    color: var(--gold-primary);
+}
+
+.realmlist-box {
+    margin-top: 1.5rem;
+    padding: 1.25rem;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(197, 160, 89, 0.15);
+    border-radius: 4px;
+}
+
+.realmlist-title {
+    display: block;
+    font-weight: 600;
+    color: var(--gold-primary);
+    margin-bottom: 0.25rem;
+    font-size: 0.95rem;
+}
+
+.realmlist-desc {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 0.75rem;
+}
+
+.realmlist-desc code {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 0.15rem 0.3rem;
+    border-radius: 2px;
+    color: #f1f5f9;
+}
+
+.copy-container {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.copy-container input {
+    flex: 1;
+    background: rgba(7, 9, 14, 0.8);
+    border: 1px solid rgba(197, 160, 89, 0.25);
+    border-radius: 4px;
+    padding: 0.5rem 0.75rem;
+    color: var(--gold-bright);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+}
+
+.admin-link-container {
+    margin-top: 1.5rem;
+    text-align: right;
+}
+
+.admin-link {
+    color: var(--gold-primary);
+    text-decoration: none;
+    font-size: 0.95rem;
+    font-weight: 500;
+    transition: color 0.2s;
+}
+
+.admin-link:hover {
+    color: var(--gold-bright);
+    text-shadow: 0 0 8px var(--gold-glow);
+}
+
+.portal-footer, .admin-footer {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-top: 2rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    padding-top: 1.5rem;
+}
+
+/* ==========================================================================
+   Admin View & Subcomponents
+   ========================================================================== */
+
+/* Login Overlay */
+.login-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(5, 7, 11, 0.95);
+    z-index: 100;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    backdrop-filter: blur(8px);
+}
+
+.login-card {
+    width: 100%;
+    max-width: 420px;
+}
+
+.text-center {
+    text-align: center;
+}
+
+.back-to-portal-container {
+    margin-top: 1.25rem;
+    text-align: center;
+}
+
+/* Admin Dashboard Structure */
+.admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(197, 160, 89, 0.2);
+    padding-bottom: 1.25rem;
+}
+
+.admin-header h1 {
+    font-size: 2.2rem;
+    text-align: left;
+}
+
+.host-info {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    font-size: 0.95rem;
+}
+
+.admin-grid {
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    gap: 2rem;
+    align-items: stretch;
+}
+
+@media (max-width: 1024px) {
+    .admin-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.section-title {
+    font-size: 1.2rem;
+    margin-bottom: 1rem;
+    border-left: 3px solid var(--gold-primary);
+    padding-left: 0.75rem;
+}
+
+/* Process Cards */
+.control-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.process-card {
+    background: var(--bg-panel);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    padding: 1.25rem;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    transition: all 0.3s;
+}
+
+.process-card:hover {
+    border-color: var(--gold-border);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+}
+
+.card-header-status {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 0.5rem;
+}
+
+.card-header-status h3 {
+    font-size: 1.05rem;
+    color: var(--gold-bright);
+    font-weight: 600;
+}
+
+.status-badge-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.stats-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.stat-box {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.stat-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.stat-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--gold-bright);
+}
+
+.progress-bar-container {
+    height: 6px;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 0.15rem;
+}
+
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--arcane-blue), #818cf8);
+    border-radius: 3px;
+    transition: width 0.5s ease;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+}
+
+.action-buttons button {
+    flex: 1;
+    font-size: 0.8rem;
+    padding: 0.4rem 0.5rem;
+}
+
+.disabled-actions {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px dashed rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+    padding: 0.5rem;
+    text-align: center;
+}
+
+.note-text {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+/* Console Panel & Interactive Terminal */
+.console-panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--gold-border);
+    border-radius: 6px;
+    padding: 1.5rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.console-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(197, 160, 89, 0.15);
+    padding-bottom: 0.75rem;
+}
+
+.console-filters {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.filter-btn {
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    padding: 0.35rem 0.85rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.filter-btn:hover {
+    color: var(--gold-bright);
+    border-color: var(--gold-primary);
+}
+
+.filter-btn.active {
+    background: var(--gold-border);
+    border-color: var(--gold-primary);
+    color: var(--gold-bright);
+    box-shadow: 0 0 6px var(--gold-glow);
+}
+
+.terminal-wrapper {
+    flex: 1;
+    background: #05070a;
+    border: 1px solid rgba(197, 160, 89, 0.2);
+    border-radius: 4px;
+    position: relative;
+}
+
+.terminal-body {
+    height: 400px;
+    overflow-y: auto;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    color: #e2e8f0;
+}
+
+/* Custom Scrollbar for Terminal */
+.terminal-body::-webkit-scrollbar {
+    width: 8px;
+}
+.terminal-body::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.3);
+}
+.terminal-body::-webkit-scrollbar-thumb {
+    background: rgba(197, 160, 89, 0.2);
+    border-radius: 4px;
+}
+.terminal-body::-webkit-scrollbar-thumb:hover {
+    background: rgba(197, 160, 89, 0.4);
+}
+
+/* Terminal log line styles */
+.terminal-line {
+    word-break: break-all;
+    white-space: pre-wrap;
+}
+
+.terminal-line.world-msg {
+    color: #eceff4;
+}
+
+.terminal-line.auth-msg {
+    color: #818cf8;
+}
+
+.terminal-line.system-msg {
+    color: var(--warning-yellow);
+    font-weight: 500;
+}
+
+.terminal-line.input-msg {
+    color: #38bdf8;
+    font-weight: 600;
+}
+
+/* Console Input field */
+.console-input-container {
+    display: flex;
+    align-items: center;
+    background: #05070a;
+    border: 1px solid rgba(197, 160, 89, 0.2);
+    border-radius: 4px;
+    padding: 0.5rem 1rem;
+    gap: 0.75rem;
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.console-input-container:focus-within {
+    border-color: var(--gold-primary);
+    box-shadow: 0 0 8px rgba(197, 160, 89, 0.25);
+}
+
+.console-prompt {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    color: var(--gold-primary);
+    font-size: 1.1rem;
+    user-select: none;
+}
+
+.console-input-container input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #f1f5f9;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.95rem;
+    width: 100%;
+}
+
+.console-input-container button {
+    font-size: 0.8rem;
+    padding: 0.4rem 1rem;
+}
+
+/* Quick Commands block */
+.quick-commands {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+}
+
+.quick-lbl {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-right: 0.5rem;
+}
+
+.quick-cmd-btn {
+    background: rgba(27, 34, 52, 0.6);
+    border: 1px solid rgba(197, 160, 89, 0.15);
+    color: var(--gold-primary);
+    font-size: 0.8rem;
+    padding: 0.3rem 0.75rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: 'Outfit', sans-serif;
+    transition: all 0.2s;
+}
+
+.quick-cmd-btn:hover {
+    background: rgba(197, 160, 89, 0.1);
+    border-color: var(--gold-primary);
+    color: var(--gold-bright);
+}
