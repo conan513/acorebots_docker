@@ -3,7 +3,7 @@ let commandHistory = [];
 let historyIndex = -1;
 let sseSource = null;
 
-// Kezdeti ellenőrzés betöltődéskor
+// Initial check on load
 window.addEventListener('DOMContentLoaded', () => {
     checkAuth();
     
@@ -49,7 +49,7 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Modul hozzáadása form submit
+    // Add module form submit
     const addModuleForm = document.getElementById('add-module-form');
     if (addModuleForm) {
         addModuleForm.addEventListener('submit', (e) => {
@@ -59,7 +59,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Hitelesítés ellenőrzése
+// Check authentication
 function checkAuth() {
     fetch('/api/admin/check-auth')
         .then(res => res.json())
@@ -89,19 +89,19 @@ function showLoginOverlay(setupRequired) {
     const setupFm = document.getElementById('setup-form');
 
     if (setupRequired) {
-        title.textContent = 'Első Indítás: Admin Jelszó';
-        desc.textContent = 'Adj meg egy biztonságos rendszergazda jelszót a szerver kezelőfelületéhez.';
+        title.textContent = 'First Start: Admin Password';
+        desc.textContent = 'Provide a secure administrator password for the server dashboard.';
         loginFm.classList.add('hidden');
         setupFm.classList.remove('hidden');
     } else {
-        title.textContent = 'Gépész Bejelentkezés';
-        desc.textContent = 'Add meg a titkos adminisztrátori jelszót a szerver kezeléséhez.';
+        title.textContent = 'Administrator Login';
+        desc.textContent = 'Enter the administrator password to manage the server.';
         loginFm.classList.remove('hidden');
         setupFm.classList.add('hidden');
     }
 }
 
-// Első indítási jelszó mentés
+// Save first-start password
 function setupPassword() {
     const password = document.getElementById('setup-password').value;
     const confirm = document.getElementById('setup-password-confirm').value;
@@ -112,12 +112,12 @@ function setupPassword() {
 
     if (password !== confirm) {
         messageBox.classList.remove('hidden');
-        messageBox.textContent = 'A megadott jelszavak nem egyeznek!';
+        messageBox.textContent = 'The passwords do not match!';
         return;
     }
 
     submitBtn.disabled = true;
-    submitBtn.textContent = 'Mentés...';
+    submitBtn.textContent = 'Saving...';
 
     fetch('/api/admin/setup', {
         method: 'POST',
@@ -132,16 +132,16 @@ function setupPassword() {
         } else {
             const data = await res.json();
             messageBox.classList.remove('hidden');
-            messageBox.textContent = data.message || 'Hiba történt a mentés során!';
+            messageBox.textContent = data.message || 'An error occurred during save!';
         }
     })
     .catch(() => {
         messageBox.classList.remove('hidden');
-        messageBox.textContent = 'Kapcsolódási hiba!';
+        messageBox.textContent = 'Connection error!';
     })
     .finally(() => {
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Mentés & Belépés';
+        submitBtn.textContent = 'Save & Login';
     });
 }
 
@@ -152,7 +152,7 @@ function showAdminPanel() {
     loadModules();
 }
 
-// Bejelentkezés
+// Login
 function login() {
     const password = document.getElementById('admin-password').value;
     const messageBox = document.getElementById('login-message');
@@ -160,7 +160,7 @@ function login() {
 
     messageBox.classList.add('hidden');
     submitBtn.disabled = true;
-    submitBtn.textContent = 'Belépés...';
+    submitBtn.textContent = 'Logging in...';
 
     fetch('/api/admin/login', {
         method: 'POST',
@@ -174,20 +174,20 @@ function login() {
         } else {
             const data = await res.json();
             messageBox.classList.remove('hidden');
-            messageBox.textContent = data.message || 'Sikertelen bejelentkezés!';
+            messageBox.textContent = data.message || 'Failed login!';
         }
     })
     .catch(() => {
         messageBox.classList.remove('hidden');
-        messageBox.textContent = 'Szerver kapcsolódási hiba!';
+        messageBox.textContent = 'Server connection error!';
     })
     .finally(() => {
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Belépés';
+        submitBtn.textContent = 'Login';
     });
 }
 
-// Kijelentkezés
+// Logout
 function logout() {
     fetch('/api/admin/logout', { method: 'POST' })
         .then(() => {
@@ -195,29 +195,29 @@ function logout() {
         });
 }
 
-// SSE Kapcsolat inicializálása
+// Initialize SSE Connection
 function initAdminStream() {
     if (sseSource) {
         sseSource.close();
     }
 
     const term = document.getElementById('terminal-output');
-    term.innerHTML = '<div class="terminal-line system-msg">[Rendszer] Kapcsolat felépítése...</div>';
+    term.innerHTML = '<div class="terminal-line system-msg">[System] Establishing connection...</div>';
 
     sseSource = new EventSource('/api/status-stream');
 
-    // Stats event (Szerver állapotok, CPU, RAM)
+    // Stats event (Server statuses, CPU, RAM)
     sseSource.addEventListener('stats', (event) => {
         const stats = JSON.parse(event.data);
         updateProcessUI('mysql', stats.mysql);
         updateProcessUI('authserver', stats.authserver);
         updateProcessUI('worldserver', stats.worldserver);
         
-        // Modul újrafordítás státuszának szinkronizálása
+        // Synchronize module rebuild status
         updateRebuildUI(stats.rebuildStatus);
     });
 
-    // Kezdeti log history fogadása
+    // Receive initial log history
     sseSource.addEventListener('history', (event) => {
         const history = JSON.parse(event.data);
         term.innerHTML = ''; // Clear connection msgs
@@ -227,7 +227,7 @@ function initAdminStream() {
         scrollToBottom();
     });
 
-    // Új log sor fogadása
+    // Receive new log line
     sseSource.addEventListener('log', (event) => {
         const log = JSON.parse(event.data);
         appendLogLine(log);
@@ -237,18 +237,18 @@ function initAdminStream() {
     sseSource.onerror = () => {
         const line = document.createElement('div');
         line.className = 'terminal-line system-msg';
-        line.textContent = '[Rendszer] Hiba a naplófolyamban. Újracsatlakozás...';
+        line.textContent = '[System] Error in log stream. Reconnecting...';
         term.appendChild(line);
         scrollToBottom();
     };
 }
 
-// Folyamat kártya UI frissítése
+// Update process card UI
 function updateProcessUI(name, info) {
     const card = document.getElementById(`card-${name}`);
     if (!card) return;
 
-    // Státusz szegélyek & fények
+    // Status borders & lights
     const dot = card.querySelector('.status-dot');
     const lbl = card.querySelector('.status-lbl');
     
@@ -259,7 +259,7 @@ function updateProcessUI(name, info) {
     if (info.status === 'starting') statusText = 'Starting';
     lbl.textContent = statusText;
 
-    // CPU és RAM
+    // CPU and RAM
     const cpuBar = document.getElementById(`${name}-cpu-bar`);
     const cpuVal = document.getElementById(`${name}-cpu-val`);
     const ramVal = document.getElementById(`${name}-ram-val`);
@@ -268,7 +268,7 @@ function updateProcessUI(name, info) {
     if (cpuVal) cpuVal.textContent = `${info.cpu.toFixed(1)}%`;
     if (ramVal) ramVal.textContent = `${info.ram} MB`;
 
-    // Gombok állapotai
+    // Button states
     if (name !== 'mysql') {
         const btnStart = document.getElementById(`btn-${name === 'authserver' ? 'auth' : 'world'}-start`);
         const btnStop = document.getElementById(`btn-${name === 'authserver' ? 'auth' : 'world'}-stop`);
@@ -279,11 +279,11 @@ function updateProcessUI(name, info) {
             btnStop.disabled = false;
             btnRestart.disabled = false;
             
-            // Ha a worldserver fut, engedélyezzük a konzol bevitelt
+            // If worldserver is running, enable console input
             if (name === 'worldserver') {
                 document.getElementById('console-input').disabled = false;
                 document.getElementById('btn-send-command').disabled = false;
-                document.getElementById('console-input').placeholder = "Írj be egy GM parancsot (pl. .server info vagy .reload all) és nyomj Entert...";
+                document.getElementById('console-input').placeholder = "Enter a GM command (e.g. .server info or .reload all) and press Enter...";
             }
         } else if (info.status === 'starting') {
             btnStart.disabled = true;
@@ -293,7 +293,7 @@ function updateProcessUI(name, info) {
             if (name === 'worldserver') {
                 document.getElementById('console-input').disabled = true;
                 document.getElementById('btn-send-command').disabled = true;
-                document.getElementById('console-input').placeholder = "Worldserver indulás alatt. Kérjük várj...";
+                document.getElementById('console-input').placeholder = "Worldserver starting. Please wait...";
             }
         } else {
             btnStart.disabled = false;
@@ -303,17 +303,17 @@ function updateProcessUI(name, info) {
             if (name === 'worldserver') {
                 document.getElementById('console-input').disabled = true;
                 document.getElementById('btn-send-command').disabled = true;
-                document.getElementById('console-input').placeholder = "A konzol használatához indítsd el a Worldservert!";
+                document.getElementById('console-input').placeholder = "Start Worldserver to use the console!";
             }
         }
     }
 }
 
-// Log sor hozzáadása a terminálhoz
+// Add log line to terminal
 function appendLogLine(log) {
     const term = document.getElementById('terminal-output');
     
-    // Biztonsági korlát: maximum 1000 sor maradhat a DOM-ban
+    // Safety limit: maximum 1000 lines can remain in the DOM
     if (term.childNodes.length > 1000) {
         term.removeChild(term.firstChild);
     }
@@ -334,7 +334,7 @@ function appendLogLine(log) {
         line.classList.add('compiler-msg');
     }
 
-    // Időbélyeg hozzáadása, ha van
+    // Add timestamp if present
     const timeStr = log.time ? `[${log.time}] ` : '';
     const prefix = log.service === 'world' ? '[World] ' : 
                    log.service === 'auth' ? '[Auth] ' : 
@@ -342,22 +342,22 @@ function appendLogLine(log) {
                    
     line.textContent = `${timeStr}${prefix}${log.text}`;
 
-    // Szűrés alkalmazása az új sorra
+    // Apply filter to the new line
     applyLineFilter(line);
 
     term.appendChild(line);
 }
 
-// Log sorok szűrése
+// Filter log lines
 function filterLogs(filterType) {
     currentFilter = filterType;
     
-    // Gombok státusza
+    // Button status
     document.getElementById('filter-all').className = `filter-btn ${filterType === 'all' ? 'active' : ''}`;
     document.getElementById('filter-world').className = `filter-btn ${filterType === 'world' ? 'active' : ''}`;
     document.getElementById('filter-auth').className = `filter-btn ${filterType === 'auth' ? 'active' : ''}`;
 
-    // Sorok elrejtése/megjelenítése
+    // Hide/show lines
     const lines = document.querySelectorAll('.terminal-line');
     lines.forEach(line => {
         applyLineFilter(line);
@@ -379,26 +379,26 @@ function applyLineFilter(line) {
     }
 }
 
-// Görgetés a terminál aljára
+// Scroll to the bottom of the terminal
 function scrollToBottom() {
     const term = document.getElementById('terminal-output');
     term.scrollTop = term.scrollHeight;
 }
 
-// Konzol parancs elküldése
+// Send console command
 function sendConsoleCommand() {
     const input = document.getElementById('console-input');
     const command = input.value.trim();
     if (!command) return;
 
-    // Mentés az előzményekbe
+    // Save in history
     commandHistory.push(command);
     if (commandHistory.length > 50) {
         commandHistory.shift();
     }
     historyIndex = -1;
 
-    // Helyi visszajelzés azonnal a terminálban
+    // Immediate local feedback in terminal
     appendLogLine({
         time: new Date().toLocaleTimeString(),
         service: 'input',
@@ -418,7 +418,7 @@ function sendConsoleCommand() {
             appendLogLine({
                 time: new Date().toLocaleTimeString(),
                 service: 'system',
-                text: '[Rendszer] A parancs elküldése sikertelen volt (szerver hiba).'
+                text: '[System] Failed to send command (server error).'
             });
             scrollToBottom();
         }
@@ -427,13 +427,13 @@ function sendConsoleCommand() {
         appendLogLine({
             time: new Date().toLocaleTimeString(),
             service: 'system',
-            text: '[Rendszer] Nem sikerült elérni a szervert.'
+            text: '[System] Failed to reach the server.'
         });
         scrollToBottom();
     });
 }
 
-// Gyorsparancs
+// Quick command
 function sendQuickCommand(cmd) {
     const input = document.getElementById('console-input');
     if (input.disabled) return;
@@ -441,19 +441,19 @@ function sendQuickCommand(cmd) {
     input.value = cmd;
     input.focus();
     
-    // Ha befejezett parancs, rögtön küldjük is
+    // If complete command, send immediately
     if (cmd !== '.account create ') {
         sendConsoleCommand();
     }
 }
 
-// Folyamat indítása / leállítása / újraindítása
+// Start / stop / restart process
 function controlProcess(service, action) {
     const btnStart = document.getElementById(`btn-${service === 'authserver' ? 'auth' : 'world'}-start`);
     const btnStop = document.getElementById(`btn-${service === 'authserver' ? 'auth' : 'world'}-stop`);
     const btnRestart = document.getElementById(`btn-${service === 'authserver' ? 'auth' : 'world'}-restart`);
 
-    // Gombok átmeneti letiltása
+    // Temporarily disable buttons
     if (btnStart) btnStart.disabled = true;
     if (btnStop) btnStop.disabled = true;
     if (btnRestart) btnRestart.disabled = true;
@@ -461,7 +461,7 @@ function controlProcess(service, action) {
     appendLogLine({
         time: new Date().toLocaleTimeString(),
         service: 'system',
-        text: `[Rendszer] ${service} vezérlési kérés küldése: ${action}...`
+        text: `[System] Sending ${service} control request: ${action}...`
     });
     scrollToBottom();
 
@@ -476,7 +476,7 @@ function controlProcess(service, action) {
             appendLogLine({
                 time: new Date().toLocaleTimeString(),
                 service: 'system',
-                text: `[Rendszer] Hiba történt: ${data.message || 'Ismeretlen hiba'}`
+                text: `[System] Error occurred: ${data.message || 'Unknown error'}`
             });
             scrollToBottom();
         }
@@ -485,17 +485,17 @@ function controlProcess(service, action) {
         appendLogLine({
             time: new Date().toLocaleTimeString(),
             service: 'system',
-            text: `[Rendszer] Nem sikerült a kapcsolatfelvétel a vezérlőhöz.`
+            text: `[System] Failed to connect to the controller.`
         });
         scrollToBottom();
     });
 }
 
 // ==========================================================================
-// C++ Modul Kezelő & Fordítás Logic
+// C++ Module Manager & Build Logic
 // ==========================================================================
 
-// Modulok betöltése a szerverről
+// Load modules from server
 function loadModules() {
     const list = document.getElementById('module-list');
     if (!list) return;
@@ -505,7 +505,7 @@ function loadModules() {
         .then(data => {
             list.innerHTML = '';
             if (!data.modules || data.modules.length === 0) {
-                list.innerHTML = '<li class="module-item loading">Nincs egyedi modul telepítve.</li>';
+                list.innerHTML = '<li class="module-item loading">No custom modules installed.</li>';
             } else {
                 data.modules.forEach(mod => {
                     const li = document.createElement('li');
@@ -514,13 +514,13 @@ function loadModules() {
                     const name = getModuleName(mod);
                     li.innerHTML = `
                         <span class="module-url" title="${mod}">${name}</span>
-                        <button onclick="deleteModule('${mod}')" class="delete-module-btn" title="Törlés">&times;</button>
+                        <button onclick="deleteModule('${mod}')" class="delete-module-btn" title="Delete">&times;</button>
                     `;
                     list.appendChild(li);
                 });
             }
 
-            // Újrafordítás figyelmeztetés
+            // Rebuild warning
             const warningBox = document.getElementById('rebuild-warning-box');
             if (data.rebuildRequired) {
                 warningBox.classList.remove('hidden');
@@ -529,11 +529,11 @@ function loadModules() {
             }
         })
         .catch(() => {
-            list.innerHTML = '<li class="module-item loading error">Hiba a modulok lekérésekor!</li>';
+            list.innerHTML = '<li class="module-item loading error">Error fetching modules!</li>';
         });
 }
 
-// Modulnév kinyerése a Git URL-ből
+// Extract module name from Git URL
 function getModuleName(url) {
     if (!url) return '';
     const parts = url.split('/');
@@ -544,7 +544,7 @@ function getModuleName(url) {
     return last;
 }
 
-// Új modul hozzáadása
+// Add new module
 function addModule() {
     const input = document.getElementById('new-module-url');
     const url = input.value.trim();
@@ -563,20 +563,20 @@ function addModule() {
             loadModules();
         } else {
             const data = await res.json();
-            alert(data.message || 'Hiba a modul hozzáadásakor!');
+            alert(data.message || 'Error adding module!');
         }
     })
     .catch(() => {
-        alert('Szerver kapcsolódási hiba!');
+        alert('Server connection error!');
     })
     .finally(() => {
         input.disabled = false;
     });
 }
 
-// Modul törlése
+// Delete module
 function deleteModule(url) {
-    if (!confirm(`Biztosan eltávolítod a(z) "${getModuleName(url)}" modult?`)) return;
+    if (!confirm(`Are you sure you want to remove the module "${getModuleName(url)}"?`)) return;
 
     fetch('/api/admin/modules', {
         method: 'POST',
@@ -588,19 +588,19 @@ function deleteModule(url) {
             loadModules();
         } else {
             const data = await res.json();
-            alert(data.message || 'Hiba a modul törlésekor!');
+            alert(data.message || 'Error deleting module!');
         }
     })
     .catch(() => {
-        alert('Szerver kapcsolódási hiba!');
+        alert('Server connection error!');
     });
 }
 
-// Újrafordítás indítása
+// Trigger rebuild
 function triggerRebuild(mode) {
     mode = mode || 'full';
-    const modeLabel = mode === 'make-only' ? 'make install (cmake nélkül)' : 'teljes (cmake + make)';
-    if (!confirm(`Figyelem: A szerver újrafordítása (${modeLabel}) leállítja a játékot, és 10-20 percet vehet igénybe. Elindítod?`)) return;
+    const modeLabel = mode === 'make-only' ? 'make install (without cmake)' : 'full (cmake + make)';
+    if (!confirm(`Warning: Recompiling the server (${modeLabel}) will stop the game and may take 10-20 minutes. Start?`)) return;
 
     setBuildingState(true);
 
@@ -614,18 +614,18 @@ function triggerRebuild(mode) {
                 appendLogLine({
                     time: new Date().toLocaleTimeString(),
                     service: 'system',
-                    text: `[Újrafordítás] ${modeLabel} módban elindítva. A logok a konzolon követhetők!`
+                    text: `[Rebuild] Started in ${modeLabel} mode. Logs can be followed in the console!`
                 });
                 scrollToBottom();
             } else {
                 const data = await res.json();
-                alert(data.message || 'Nem sikerült elindítani a fordítást.');
+                alert(data.message || 'Failed to start compilation.');
                 setBuildingState(false);
                 loadModules();
             }
         })
         .catch(() => {
-            alert('Kapcsolódási hiba!');
+            alert('Connection error!');
             setBuildingState(false);
             loadModules();
         });
@@ -653,22 +653,22 @@ function setBuildingState(isBuilding) {
     const progBar    = document.getElementById('build-progress-bar-container');
 
     if (isBuilding) {
-        if (btnRebuild) { btnRebuild.disabled = true;  btnRebuild.textContent = 'Fordítás...'; }
-        if (btnMake)    { btnMake.disabled    = true;  btnMake.textContent    = 'Fordítás...'; }
+        if (btnRebuild) { btnRebuild.disabled = true;  btnRebuild.textContent = 'Compiling...'; }
+        if (btnMake)    { btnMake.disabled    = true;  btnMake.textContent    = 'Compiling...'; }
         if (dot) dot.className = 'status-dot starting';
-        if (lbl) lbl.textContent = 'Fordítás folyamatban';
+        if (lbl) lbl.textContent = 'Compilation in progress';
         if (modDot) modDot.className = 'status-dot starting';
-        if (modLbl) modLbl.textContent = 'Fordítás...';
+        if (modLbl) modLbl.textContent = 'Compiling...';
         if (progBar) progBar.classList.remove('hidden');
         disableServerControlButtons(true);
         animateBuildSteps(true);
     } else {
-        if (btnRebuild) { btnRebuild.disabled = false; btnRebuild.innerHTML = '🔨 Teljes Újrafordítás (cmake + make)'; }
-        if (btnMake)    { btnMake.disabled    = false; btnMake.innerHTML    = '⚡ Csak make install'; }
+        if (btnRebuild) { btnRebuild.disabled = false; btnRebuild.innerHTML = '🔨 Full Recompilation (cmake + make)'; }
+        if (btnMake)    { btnMake.disabled    = false; btnMake.innerHTML    = '⚡ Only make install'; }
         if (dot) dot.className = 'status-dot online';
-        if (lbl) lbl.textContent = 'Kész';
+        if (lbl) lbl.textContent = 'Ready';
         if (modDot) modDot.className = 'status-dot online';
-        if (modLbl) modLbl.textContent = 'Kész';
+        if (modLbl) modLbl.textContent = 'Ready';
         if (progBar) progBar.classList.add('hidden');
         disableServerControlButtons(false);
         animateBuildSteps(false);
@@ -697,8 +697,8 @@ function animateBuildSteps(active) {
     }, 4000);
 }
 
+// Call setBuildingState from SSE as well
 function updateRebuildUI(status) {
-    // A setBuildingState-et hívjuk SSE-ből is
     const wasBuilding = document.getElementById('btn-trigger-rebuild')?.disabled;
     if (status === 'building' && !wasBuilding) {
         setBuildingState(true);

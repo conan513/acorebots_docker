@@ -1,16 +1,16 @@
 @echo off
-echo [ACORE] Image ellenorzese...
+echo [ACORE] Checking image...
 docker images | findstr /R /C:"^acore " >nul
 if errorlevel 1 (
-    echo [ACORE] Image nem talalhato, build indulas...
+    echo [ACORE] Image not found, starting build...
     docker build -t acore .
     if errorlevel 1 (
-        echo [ACORE] HIBA: A build sikertelen volt!
+        echo [ACORE] ERROR: Build failed!
         exit /b 1
     )
 ) else (
-    echo [ACORE] Image megtalalva, build kihagyva.
+    echo [ACORE] Image found, skipping build.
 )
 
-echo [ACORE] Kontener inditasa...
+echo [ACORE] Starting container...
 docker run -it --rm -v "%cd%/configs:/host-configs" -v acore-bin:/opt/acore -v acore-source:/acore -p 8085:8085 -p 3724:3724 -p 3310:3310 -p 8000:8000 --cap-add SYS_NICE --cap-add IPC_LOCK --ulimit memlock=-1 acore

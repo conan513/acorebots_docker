@@ -3,43 +3,43 @@
 HOST_CONFIG_DIR="/host-configs"
 CONTAINER_CONFIG_DIR="/opt/acore/etc"
 
-echo "[ACORE] MySQL indítása nem-root userként..."
+echo "[ACORE] Starting MySQL as non-root user..."
 
-# MySQL user létrehozása, ha nem létezik
+# Create MySQL user if it does not exist
 id -u mysql &>/dev/null || useradd -r -s /bin/false mysql
 chown -R mysql:mysql /opt/acore/data
 
-# MySQL indítása mysql userként
+# Start MySQL as mysql user
 su -s /bin/bash mysql -c "mysqld --defaults-file=/etc/mysql/my.cnf" &
 sleep 10
 
-echo "[ACORE] Acore MySQL user létrehozása (ha még nincs)..."
+echo "[ACORE] Creating Acore MySQL user (if not exists)..."
 mysql -uroot -e "CREATE USER IF NOT EXISTS 'acore'@'%' IDENTIFIED BY 'acorepass';"
 mysql -uroot -e "GRANT ALL PRIVILEGES ON *.* TO 'acore'@'%'; FLUSH PRIVILEGES;"
 
-echo "[ACORE] Config szinkronizálás indul..."
+echo "[ACORE] Starting config synchronization..."
 
 mkdir -p "$HOST_CONFIG_DIR"
 mkdir -p "$HOST_CONFIG_DIR/data"
 mkdir -p "$CONTAINER_CONFIG_DIR"
 
-# 1) DIST fájlok másolása ideiglenes helyre
+# 1) Copying DIST files to temporary location
 cp "$CONTAINER_CONFIG_DIR/authserver.conf.dist" /tmp/auth.dist
 cp "$CONTAINER_CONFIG_DIR/worldserver.conf.dist" /tmp/world.dist
 
-# 2) Ha nincs host config → kimásoljuk
+# 2) If there is no host config -> copy it
 if [ ! -f "$HOST_CONFIG_DIR/authserver.conf" ]; then
-    echo "[ACORE] Nincs külső authserver.conf → másolás..."
+    echo "[ACORE] External authserver.conf not found -> copying..."
     cp /tmp/auth.dist "$HOST_CONFIG_DIR/authserver.conf"
 fi
 
 if [ ! -f "$HOST_CONFIG_DIR/worldserver.conf" ]; then
-    echo "[ACORE] Nincs külső worldserver.conf → másolás..."
+    echo "[ACORE] External worldserver.conf not found -> copying..."
     cp /tmp/world.dist "$HOST_CONFIG_DIR/worldserver.conf"
 fi
 
-# 3) DIST és HOST összevetése → hiányzó sorok pótlása (authserver)
-echo "[ACORE] Authserver config frissítése..."
+# 3) Compare DIST and HOST -> append missing lines (authserver)
+echo "[ACORE] Updating authserver config..."
 grep -v '^#' /tmp/auth.dist | while read -r line; do
     [ -z "$line" ] && continue
     key=$(echo "$line" | cut -d= -f1 | xargs)
@@ -48,8 +48,8 @@ grep -v '^#' /tmp/auth.dist | while read -r line; do
     fi
 done
 
-# 3/b) DIST és HOST összevetése → hiányzó sorok pótlása (worldserver)
-echo "[ACORE] Worldserver config frissítése..."
+# 3/b) Compare DIST and HOST -> append missing lines (worldserver)
+echo "[ACORE] Updating worldserver config..."
 grep -v '^#' /tmp/world.dist | while read -r line; do
     [ -z "$line" ] && continue
     key=$(echo "$line" | cut -d= -f1 | xargs)
@@ -58,8 +58,8 @@ grep -v '^#' /tmp/world.dist | while read -r line; do
     fi
 done
 
-# 4) DB sorok felülírása
-echo "[ACORE] DB sorok beállítása..."
+# 4) Overwrite database config lines
+echo "[ACORE] Configuring DB connection settings..."
 
 sed -i 's/^LoginDatabaseInfo.*/LoginDatabaseInfo = "127.0.0.1;3310;acore;acorepass;acore_auth"/' "$HOST_CONFIG_DIR/authserver.conf"
 
@@ -68,8 +68,8 @@ sed -i 's/^WorldDatabaseInfo.*/WorldDatabaseInfo = "127.0.0.1;3310;acore;acorepa
 sed -i 's/^CharacterDatabaseInfo.*/CharacterDatabaseInfo = "127.0.0.1;3310;acore;acorepass;acore_characters"/' "$HOST_CONFIG_DIR/worldserver.conf"
 sed -i 's/^DataDir.*/DataDir = "\/host-configs\/data"/' "$HOST_CONFIG_DIR/worldserver.conf"
 
-# 5) Playerbots config szinkronizálása
-echo "[ACORE] Playerbots config szinkronizálása..."
+# 5) Synchronizing Playerbots config
+echo "[ACORE] Synchronizing Playerbots config..."
 
 PLAYERBOTS_DIST="/acore/modules/mod-playerbots/conf/playerbots.conf.dist"
 PLAYERBOTS_HOST="$HOST_CONFIG_DIR/modules/playerbots.conf"
@@ -80,7 +80,7 @@ mkdir -p /opt/acore/etc/modules
 
 if [ -f "$PLAYERBOTS_DIST" ]; then
     if [ ! -f "$PLAYERBOTS_HOST" ]; then
-        echo "[ACORE] Nincs külső playerbots.conf → másolás..."
+        echo "[ACORE] External playerbots.conf not found -> copying..."
         cp "$PLAYERBOTS_DIST" "$PLAYERBOTS_HOST"
     fi
 
@@ -92,19 +92,19 @@ if [ -f "$PLAYERBOTS_DIST" ]; then
         fi
     done
 
-    # DB sorok felülírása a playerbots configban
+    # Overwrite database config lines in playerbots config
     sed -i 's/^PlayerbotsDatabaseInfo.*/PlayerbotsDatabaseInfo = "127.0.0.1;3310;acore;acorepass;acore_playerbots"/' "$PLAYERBOTS_HOST"
 
     cp "$PLAYERBOTS_HOST" "$PLAYERBOTS_CONTAINER"
 else
-    echo "[ACORE] FIGYELEM: Nem található playerbots.conf.dist a modulban!"
+    echo "[ACORE] WARNING: playerbots.conf.dist not found in module!"
 fi
 
-# 6) Frissített configok visszamásolása a konténer config mappájába
+# 6) Copy updated configs back to container config directory
 cp "$HOST_CONFIG_DIR/authserver.conf" "$CONTAINER_CONFIG_DIR/authserver.conf"
 cp "$HOST_CONFIG_DIR/worldserver.conf" "$CONTAINER_CONFIG_DIR/worldserver.conf"
 
-echo "[ACORE] Config szinkronizálás kész."
+echo "[ACORE] Config synchronization completed."
 
-echo "[ACORE] Webes vezérlőpult indítása (ez irányítja majd az Auth és World szervereket)..."
+echo "[ACORE] Starting Web Dashboard (which will control the Auth and World servers)..."
 exec node /opt/dashboard/server.js

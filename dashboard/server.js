@@ -9,10 +9,10 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const MODULES_CONFIG_FILE = '/host-configs/modules.json';
 const PASSWORD_FILE = '/host-configs/admin_password.txt';
 
-// Globális session tároló
+// Global session storage
 const activeSessions = new Set();
 
-// Szerver folyamatok referenciái
+// Server process references
 let authProcess = null;
 let worldProcess = null;
 
@@ -24,29 +24,29 @@ let authPid = null;
 let worldPid = null;
 let mysqlPid = null;
 
-// Log history puffer (utolsó 200 sor)
+// Log history buffer (last 200 lines)
 const maxLogHistory = 200;
 const logHistory = [];
 
-// SSE kliensek listája
+// SSE clients list
 let sseClients = [];
 
-// Aktív játékosok száma ( worldserver .server info parancsból nyerhető ki, vagy alapértelmezetten 0 )
+// Active player count (retrieved from worldserver .server info command, default 0)
 let activePlayerCount = 0;
-let worldUptime = 0; // másodpercben
+let worldUptime = 0; // in seconds
 let worldStartTime = null;
 
 // ==========================================================================
-// Segédfüggvények
+// Helper functions
 // ==========================================================================
 
 function addLog(service, text) {
-    // Sorbeli tisztítás (pl. színes ANSI kódok eltávolítása, ha vannak)
+    // Inline cleanup (e.g. removing colored ANSI codes if present)
     const cleanedText = text.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '').trim();
     if (!cleanedText) return;
 
     const logEntry = {
-        time: new Date().toLocaleTimeString('hu-HU'),
+        time: new Date().toLocaleTimeString('en-US'),
         service, // 'world', 'auth', 'system', 'input'
         text: cleanedText
     };
@@ -56,7 +56,7 @@ function addLog(service, text) {
         logHistory.shift();
     }
 
-    // Küldés az aktív SSE klienseknek
+    // Broadcast to active SSE clients
     broadcastToSse('log', logEntry);
 }
 
@@ -72,7 +72,7 @@ function broadcastToSse(eventType, data) {
     });
 }
 
-// Cookie parszolás
+// Cookie parsing
 function parseCookies(request) {
     const list = {};
     const cookieHeader = request.headers.cookie;
@@ -90,10 +90,10 @@ function parseCookies(request) {
 }
 
 // ==========================================================================
-// Szerver Folyamatok Kezelése (Spawn & Monitor)
+// Server Process Management (Spawn & Monitor)
 // ==========================================================================
 
-// MySQL PID lekérdezése
+// Retrieve MySQL PID
 function updateMysqlPid() {
     return new Promise((resolve) => {
         exec('pgrep mysqld', (err, stdout) => {
@@ -107,7 +107,7 @@ function updateMysqlPid() {
     });
 }
 
-// CPU/RAM adatok lekérdezése egy PID-hez
+// Retrieve CPU/RAM usage stats for a PID
 function getProcessStats(pid) {
     return new Promise((resolve) => {
         if (!pid) return resolve({ cpu: 0, ram: 0 });
@@ -128,7 +128,21 @@ function getProcessStats(pid) {
     });
 }
 
-// Rendszeres statisztika frissítés és küldés
+function getOnlinePlayerCounts() {
+    return new Promise((resolve) => {
+        exec('mysql -uacore -pacorepass -D acore_characters -N -e "SELECT COUNT(*), SUM(IF(a.username NOT LIKE \'RNDBOT%\', 1, 0)) FROM characters c JOIN acore_auth.account a ON c.account = a.id WHERE c.online = 1"', (err, stdout) => {
+            if (err || !stdout) {
+                return resolve({ total: 0, real: 0 });
+            }
+            const parts = stdout.trim().split(/\s+/);
+            const total = parseInt(parts[0]) || 0;
+            const real = parseInt(parts[1]) || 0;
+            resolve({ total, real });
+        });
+    });
+}
+
+// Regular stats updates and broadcasting
 async function sendStatsUpdate() {
     await updateMysqlPid();
     
@@ -136,11 +150,23 @@ async function sendStatsUpdate() {
     const authStats = authPid ? await getProcessStats(authPid) : { cpu: 0, ram: 0 };
     const worldStats = worldPid ? await getProcessStats(worldPid) : { cpu: 0, ram: 0 };
 
-    // Uptime számítása, ha a worldserver fut
+    // Calculate uptime if worldserver is running
     if (worldState === 'running' && worldStartTime) {
         worldUptime = Math.round((Date.now() - worldStartTime) / 1000);
+        
+        try {
+            const counts = await getOnlinePlayerCounts();
+            if (counts.real === 0 && counts.total === 0) {
+                activePlayerCount = "0";
+            } else {
+                activePlayerCount = `${counts.real} (+${counts.total - counts.real} bot)`;
+            }
+        } catch (e) {
+            activePlayerCount = "0";
+        }
     } else {
         worldUptime = 0;
+        activePlayerCount = "0";
     }
 
     const payload = {
@@ -167,36 +193,35 @@ async function sendStatsUpdate() {
     broadcastToSse('stats', payload);
 }
 
-// Folyamat adatok stream feldolgozása soronként
+// Process output stream handling line-by-line
 function handleProcessOutput(process, name) {
     let buffer = '';
     process.stdout.on('data', (data) => {
         buffer += data.toString();
         const lines = buffer.split('\n');
-        buffer = lines.pop(); // utolsó befejezetlen sor visszarakása a pufferbe
+        buffer = lines.pop(); // put unfinished line back in buffer
         
         lines.forEach(line => {
             addLog(name, line);
             
-            // Automatikus "yes" válasz küldése adatbázis és frissítési kérdésekre
+            // Automatically reply "yes" to database upgrade and confirmation prompts
             if (name === 'world' && (line.includes('[yes (default) / no]:') || line.includes('Do you want to create it?') || line.includes('Do you want to apply'))) {
-                addSystemLog('Adatbázis/frissítés jóváhagyási kérdés észlelve a Worldservertől. Automatikus válasz: yes');
+                addSystemLog('Database upgrade/confirmation prompt detected from Worldserver. Automatic reply: yes');
                 process.stdin.write('yes\n');
             }
             
-            // Worldserver indítási fázisának figyelése
+            // Monitor Worldserver startup phase
             if (name === 'world' && worldState === 'starting') {
                 if (line.includes('World daemon-thread running') || line.includes('ready') || line.includes('max connections')) {
                     worldState = 'running';
                     worldStartTime = Date.now();
-                    addSystemLog('Worldserver sikeresen elindult, játékra kész!');
+                    addSystemLog('Worldserver started successfully, ready for play!');
                 }
             }
 
-            // Aktív játékosok számának kinyerése a naplóból (pl. ha a server info lefut)
-            // AzerothCore formátum: "Players online: X (max: Y)" vagy hasonló bot statok
+            // Extract active player count from logs (e.g. when server info runs)
             if (name === 'world') {
-                const match = line.match(/Players online:\s*(\d+)/i) || line.match(/játékos online:\s*(\d+)/i);
+                const match = line.match(/Players online:\s*(\d+)/i);
                 if (match) {
                     activePlayerCount = parseInt(match[1]);
                 }
@@ -216,7 +241,7 @@ function handleProcessOutput(process, name) {
 function startAuthserver() {
     if (authState !== 'stopped') return;
     authState = 'starting';
-    addSystemLog('Authserver indítása...');
+    addSystemLog('Starting Authserver...');
 
     try {
         authProcess = spawn('/opt/acore/bin/authserver', [], {
@@ -225,18 +250,18 @@ function startAuthserver() {
         });
         authPid = authProcess.pid;
         authState = 'running';
-        addSystemLog(`Authserver elindult (PID: ${authPid})`);
+        addSystemLog(`Authserver started (PID: ${authPid})`);
 
         handleProcessOutput(authProcess, 'auth');
 
         authProcess.on('exit', (code) => {
-            addSystemLog(`Authserver leállt. Exit code: ${code}`);
+            addSystemLog(`Authserver stopped. Exit code: ${code}`);
             authState = 'stopped';
             authPid = null;
             authProcess = null;
         });
     } catch (err) {
-        addSystemLog(`Hiba az Authserver indításakor: ${err.message}`);
+        addSystemLog(`Error starting Authserver: ${err.message}`);
         authState = 'stopped';
         authPid = null;
     }
@@ -245,7 +270,7 @@ function startAuthserver() {
 function startWorldserver() {
     if (worldState !== 'stopped') return;
     worldState = 'starting';
-    addSystemLog('Worldserver indítása...');
+    addSystemLog('Starting Worldserver...');
 
     try {
         worldProcess = spawn('/opt/acore/bin/worldserver', [], {
@@ -253,12 +278,12 @@ function startWorldserver() {
             stdio: ['pipe', 'pipe', 'pipe']
         });
         worldPid = worldProcess.pid;
-        addSystemLog(`Worldserver folyamat elindítva (PID: ${worldPid}). Adatbázisok betöltése folyamatban...`);
+        addSystemLog(`Worldserver process started (PID: ${worldPid}). Loading databases...`);
 
         handleProcessOutput(worldProcess, 'world');
 
         worldProcess.on('exit', (code) => {
-            addSystemLog(`Worldserver leállt. Exit code: ${code}`);
+            addSystemLog(`Worldserver stopped. Exit code: ${code}`);
             worldState = 'stopped';
             worldPid = null;
             worldProcess = null;
@@ -266,7 +291,7 @@ function startWorldserver() {
             activePlayerCount = 0;
         });
     } catch (err) {
-        addSystemLog(`Hiba a Worldserver indításakor: ${err.message}`);
+        addSystemLog(`Error starting Worldserver: ${err.message}`);
         worldState = 'stopped';
         worldPid = null;
     }
@@ -274,21 +299,21 @@ function startWorldserver() {
 
 function stopAuthserver() {
     if (authState === 'stopped' || !authProcess) return;
-    addSystemLog('Authserver leállítása (SIGINT)...');
+    addSystemLog('Stopping Authserver (SIGINT)...');
     authProcess.kill('SIGINT');
 }
 
 function stopWorldserver() {
     if (worldState === 'stopped' || !worldProcess) return;
-    addSystemLog('Worldserver leállítása (graceful shutdown parancs elküldése)...');
+    addSystemLog('Stopping Worldserver (sending graceful shutdown command)...');
     
-    // Tiszta leállítás a WoW konzolon keresztül
+    // Clean shutdown via WoW console
     worldProcess.stdin.write('shutdown 0\n');
 
-    // Biztonsági timeout: ha 15 mp múlva sem áll le, leöljük
+    // Safety timeout: if it does not stop in 15 seconds, kill it
     const forceKillTimeout = setTimeout(() => {
         if (worldProcess) {
-            addSystemLog('Worldserver nem állt le időben. Folyamat kényszerített leállítása (SIGKILL)...');
+            addSystemLog('Worldserver did not stop in time. Forcing termination (SIGKILL)...');
             worldProcess.kill('SIGKILL');
         }
     }, 15000);
@@ -299,7 +324,7 @@ function stopWorldserver() {
 }
 
 // ==========================================================================
-// HTTP Kiszolgáló & Útvonalak (Routing)
+// HTTP Server & Routing
 // ==========================================================================
 
 const server = http.createServer((req, res) => {
@@ -308,7 +333,7 @@ const server = http.createServer((req, res) => {
     const cookies = parseCookies(req);
     const isAuthenticated = activeSessions.has(cookies.SessionId);
 
-    // 1) Statikus fájlok kiszolgálása
+    // 1) Serve static files
     if (method === 'GET') {
         let filePath = '';
         let contentType = 'text/html; charset=utf-8';
@@ -316,7 +341,7 @@ const server = http.createServer((req, res) => {
         if (url === '/' || url === '/index.html') {
             filePath = path.join(PUBLIC_DIR, 'index.html');
         } else if (url === '/admin' || url === '/admin.html') {
-            // Nem irányítunk át azonnal szerveroldalon, az admin.html-ben lévő JS kezeli a Login overlay-t.
+            // Do not redirect immediately on the server-side, JS in admin.html handles the Login overlay.
             filePath = path.join(PUBLIC_DIR, 'admin.html');
         } else if (url === '/style.css') {
             filePath = path.join(PUBLIC_DIR, 'style.css');
@@ -333,7 +358,7 @@ const server = http.createServer((req, res) => {
             fs.readFile(filePath, (err, content) => {
                 if (err) {
                     res.writeHead(500);
-                    res.end('Belső Szerver Hiba');
+                    res.end('Internal Server Error');
                 } else {
                     res.writeHead(200, { 'Content-Type': contentType });
                     res.end(content);
@@ -343,7 +368,7 @@ const server = http.createServer((req, res) => {
         }
     }
 
-    // 2) SSE Csatorna (Valós idejű szerver állapotok és logok)
+    // 2) SSE Channel (Real-time server statuses and logs)
     if (method === 'GET' && url === '/api/status-stream') {
         res.writeHead(200, {
             'Content-Type': 'text/event-stream',
@@ -352,13 +377,13 @@ const server = http.createServer((req, res) => {
             'Access-Control-Allow-Origin': '*'
         });
 
-        // Kliens hozzáadása a listához
+        // Add client to list
         sseClients.push(res);
 
-        // Első csatlakozáskor elküldjük az eddigi log history-t
+        // Send existing log history on first connection
         res.write(`event: history\ndata: ${JSON.stringify(logHistory)}\n\n`);
         
-        // Azonnali stat frissítés küldése
+        // Send immediate stats update
         sendStatsUpdate();
 
         req.on('close', () => {
@@ -368,7 +393,7 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    // 3) Fiók Regisztráció (Játékosoknak)
+    // 3) Account Registration (For Players)
     if (method === 'POST' && url === '/api/register') {
         let body = '';
         req.on('data', chunk => { body += chunk.toString(); });
@@ -377,38 +402,38 @@ const server = http.createServer((req, res) => {
                 const { username, password } = JSON.parse(body);
                 if (!username || !password) {
                     res.writeHead(400, { 'Content-Type': 'application/json' });
-                    return res.end(JSON.stringify({ message: 'Hiányzó felhasználónév vagy jelszó!' }));
+                    return res.end(JSON.stringify({ message: 'Missing username or password!' }));
                 }
 
                 if (username.length < 3 || username.length > 16 || !/^[a-zA-Z0-9]+$/.test(username)) {
                     res.writeHead(400, { 'Content-Type': 'application/json' });
-                    return res.end(JSON.stringify({ message: 'A felhasználónév 3-16 karakter hosszú lehet, és csak betűket/számokat tartalmazhat!' }));
+                    return res.end(JSON.stringify({ message: 'Username must be 3-16 characters long and can only contain letters and numbers!' }));
                 }
 
                 if (worldState !== 'running' || !worldProcess) {
                     res.writeHead(503, { 'Content-Type': 'application/json' });
-                    return res.end(JSON.stringify({ message: 'A játékvilág (Worldserver) jelenleg offline. Regisztráció nem lehetséges!' }));
+                    return res.end(JSON.stringify({ message: 'The game world (Worldserver) is currently offline. Registration is not possible!' }));
                 }
 
-                addSystemLog(`Fiók regisztrációs kérés: ${username}`);
+                addSystemLog(`Account registration request: ${username}`);
                 
-                // Parancs küldése a Worldserver-nek: account create <user> <pass>
+                // Send command to Worldserver: account create <user> <pass>
                 worldProcess.stdin.write(`account create ${username} ${password}\n`);
 
-                // Válasz figyelése a kimeneten
+                // Monitor response in output
                 let resolved = false;
                 
                 const responseListener = (data) => {
                     const text = data.toString();
                     if (text.includes(`Account created: ${username}`) || text.includes(`Account created: ${username.toUpperCase()}`)) {
-                        cleanup(true, 'Fiók sikeresen létrehozva!');
+                        cleanup(true, 'Account successfully created!');
                     } else if (text.includes(`Account ${username} already exists`) || text.includes('already exists') || text.includes('already exist')) {
-                        cleanup(false, 'Ez a felhasználónév már foglalt!');
+                        cleanup(false, 'This username is already taken!');
                     }
                 };
 
                 const timeout = setTimeout(() => {
-                    cleanup(true, 'A regisztrációs kérés elküldve (időtúllépés a válasz ellenőrzésekor).');
+                    cleanup(true, 'Registration request sent (timeout verifying response).');
                 }, 1500);
 
                 function cleanup(success, message) {
@@ -430,13 +455,13 @@ const server = http.createServer((req, res) => {
 
             } catch (err) {
                 res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ message: 'Regisztrációs hiba!' }));
+                res.end(JSON.stringify({ message: 'Registration error!' }));
             }
         });
         return;
     }
 
-    // 4) Admin bejelentkezés ellenőrzése
+    // 4) Check Admin Login
     if (method === 'GET' && url === '/api/admin/check-auth') {
         const setupRequired = !hasAdminPassword();
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -458,7 +483,7 @@ const server = http.createServer((req, res) => {
 
                 if (!currentPassword) {
                     res.writeHead(400, { 'Content-Type': 'application/json' });
-                    return res.end(JSON.stringify({ message: 'A rendszer nincs konfigurálva! Kérjük állítsd be a jelszót először.' }));
+                    return res.end(JSON.stringify({ message: 'The system is not configured! Please set up the password first.' }));
                 }
 
                 if (password === currentPassword) {
@@ -472,21 +497,21 @@ const server = http.createServer((req, res) => {
                     res.end(JSON.stringify({ success: true }));
                 } else {
                     res.writeHead(401, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ message: 'Hibás adminisztrátori jelszó!' }));
+                    res.end(JSON.stringify({ message: 'Incorrect administrator password!' }));
                 }
             } catch (err) {
                 res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ message: 'Hibás kérés!' }));
+                res.end(JSON.stringify({ message: 'Invalid request!' }));
             }
         });
         return;
     }
 
-    // 5/b) Admin első beállítás (Setup)
+    // 5/b) Admin Setup
     if (method === 'POST' && url === '/api/admin/setup') {
         if (hasAdminPassword()) {
             res.writeHead(400, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ message: 'A jelszó már be van állítva!' }));
+            return res.end(JSON.stringify({ message: 'The password is already set!' }));
         }
 
         let body = '';
@@ -496,7 +521,7 @@ const server = http.createServer((req, res) => {
                 const { password } = JSON.parse(body);
                 if (!password || password.length < 6) {
                     res.writeHead(400, { 'Content-Type': 'application/json' });
-                    return res.end(JSON.stringify({ message: 'A jelszónak legalább 6 karakternek kell lennie!' }));
+                    return res.end(JSON.stringify({ message: 'The password must be at least 6 characters long!' }));
                 }
 
                 if (setAdminPassword(password)) {
@@ -508,14 +533,14 @@ const server = http.createServer((req, res) => {
                         'Content-Type': 'application/json'
                     });
                     res.end(JSON.stringify({ success: true }));
-                    addSystemLog('Az adminisztrátori jelszó sikeresen beállítva az első használat során.');
+                    addSystemLog('Administrator password set successfully during setup.');
                 } else {
                     res.writeHead(500, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ message: 'Nem sikerült elmenteni a jelszót!' }));
+                    res.end(JSON.stringify({ message: 'Failed to save the password!' }));
                 }
             } catch (err) {
                 res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ message: 'Hibás kérés!' }));
+                res.end(JSON.stringify({ message: 'Invalid request!' }));
             }
         });
         return;
@@ -535,7 +560,7 @@ const server = http.createServer((req, res) => {
     }
 
     // ==========================================================================
-    // Védett Admin API-k (Csak belépett gépészeknek)
+    // Protected Admin APIs (Logged in administrators only)
     // ==========================================================================
     if (!isAuthenticated) {
         if (url.startsWith('/api/admin/')) {
@@ -544,7 +569,7 @@ const server = http.createServer((req, res) => {
         }
     }
 
-    // 7) GM Parancs küldése a Worldservernek
+    // 7) Send GM Command to Worldserver
     if (method === 'POST' && url === '/api/admin/command') {
         let body = '';
         req.on('data', chunk => { body += chunk.toString(); });
@@ -558,12 +583,12 @@ const server = http.createServer((req, res) => {
 
                 if (worldState !== 'running' || !worldProcess) {
                     res.writeHead(400, { 'Content-Type': 'application/json' });
-                    return res.end(JSON.stringify({ message: 'A Worldserver nem fut!' }));
+                    return res.end(JSON.stringify({ message: 'Worldserver is not running!' }));
                 }
 
-                addLog('input', `GM parancs: ${command}`);
+                addLog('input', `GM command: ${command}`);
                 
-                // Parancs beírása a worldserver stdin-re (levágjuk a pontot az elejéről ha konzolból jön, bár az azerothcore konzol pont nélkül is elfogadja a GM parancsokat, de a ponttal együtt is működik általában)
+                // Write command to worldserver stdin
                 worldProcess.stdin.write(`${command}\n`);
 
                 res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -577,7 +602,7 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    // 8) Szerver folyamatok indítása / leállítása / újraindítása
+    // 8) Start / stop / restart server processes
     if (method === 'POST' && url === '/api/admin/control') {
         let body = '';
         req.on('data', chunk => { body += chunk.toString(); });
@@ -586,10 +611,10 @@ const server = http.createServer((req, res) => {
                 const { service, action } = JSON.parse(body);
                 if (!service || !action) {
                     res.writeHead(400, { 'Content-Type': 'application/json' });
-                    return res.end(JSON.stringify({ message: 'Hiányzó paraméterek' }));
+                    return res.end(JSON.stringify({ message: 'Missing parameters' }));
                 }
 
-                addSystemLog(`Vezérlési parancs: ${service} -> ${action}`);
+                addSystemLog(`Control command: ${service} -> ${action}`);
 
                 if (service === 'authserver') {
                     if (action === 'start') startAuthserver();
@@ -607,7 +632,7 @@ const server = http.createServer((req, res) => {
                     }
                 } else {
                     res.writeHead(400, { 'Content-Type': 'application/json' });
-                    return res.end(JSON.stringify({ message: 'Ismeretlen folyamat' }));
+                    return res.end(JSON.stringify({ message: 'Unknown process' }));
                 }
 
                 res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -621,7 +646,7 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    // 9) Modulok listájának lekérdezése
+    // 9) Query custom modules list
     if (method === 'GET' && url === '/api/admin/modules') {
         const modules = getSavedModules();
         const rebuildRequired = checkRebuildRequired();
@@ -631,7 +656,7 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    // 10) Modul hozzáadása vagy eltávolítása a listából
+    // 10) Add or remove module from the list
     if (method === 'POST' && url === '/api/admin/modules') {
         let body = '';
         req.on('data', chunk => { body += chunk.toString(); });
@@ -640,7 +665,7 @@ const server = http.createServer((req, res) => {
                 const { action, url: moduleUrl } = JSON.parse(body);
                 if (!action || !moduleUrl) {
                     res.writeHead(400, { 'Content-Type': 'application/json' });
-                    return res.end(JSON.stringify({ message: 'Hiányzó paraméterek!' }));
+                    return res.end(JSON.stringify({ message: 'Missing parameters!' }));
                 }
 
                 let modules = getSavedModules();
@@ -648,22 +673,22 @@ const server = http.createServer((req, res) => {
                 if (action === 'add') {
                     if (!moduleUrl.startsWith('http://') && !moduleUrl.startsWith('https://') && !moduleUrl.startsWith('git@')) {
                         res.writeHead(400, { 'Content-Type': 'application/json' });
-                        return res.end(JSON.stringify({ message: 'Érvénytelen Git URL!' }));
+                        return res.end(JSON.stringify({ message: 'Invalid Git URL!' }));
                     }
 
                     if (modules.includes(moduleUrl)) {
                         res.writeHead(400, { 'Content-Type': 'application/json' });
-                        return res.end(JSON.stringify({ message: 'Ez a modul már hozzá van adva!' }));
+                        return res.end(JSON.stringify({ message: 'This module is already added!' }));
                     }
 
                     modules.push(moduleUrl);
                     saveSavedModules(modules);
-                    addSystemLog(`Modul hozzáadva a listához: ${moduleUrl}`);
+                    addSystemLog(`Module added to the list: ${moduleUrl}`);
 
                 } else if (action === 'delete') {
                     modules = modules.filter(m => m !== moduleUrl);
                     saveSavedModules(modules);
-                    addSystemLog(`Modul törölve a listáról: ${moduleUrl}`);
+                    addSystemLog(`Module removed from the list: ${moduleUrl}`);
                 }
 
                 res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -671,17 +696,17 @@ const server = http.createServer((req, res) => {
 
             } catch (err) {
                 res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ message: 'Szerveroldali hiba!' }));
+                res.end(JSON.stringify({ message: 'Server-side error!' }));
             }
         });
         return;
     }
 
-    // 11) Szerver újrafordítás indítása (Rebuild)
+    // 11) Start server rebuild
     if (method === 'POST' && url === '/api/admin/rebuild') {
         if (rebuildStatus === 'building') {
             res.writeHead(400, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ message: 'A fordítás már folyamatban van!' }));
+            return res.end(JSON.stringify({ message: 'Compilation already in progress!' }));
         }
 
         let body = '';
@@ -690,7 +715,7 @@ const server = http.createServer((req, res) => {
             let mode = 'full';
             try { mode = JSON.parse(body).mode || 'full'; } catch(e) {}
             
-            // Indítás a háttérben
+            // Start in background
             runRebuild(mode);
 
             res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -699,7 +724,7 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    // 12) Tool exportálás a host mappába
+    // 12) Export tools to host folder
     if (method === 'POST' && url === '/api/admin/export-tools') {
         const toolsDir = '/host-configs/tools';
         const binDir = '/opt/acore/bin';
@@ -715,7 +740,7 @@ const server = http.createServer((req, res) => {
             const exported = [];
             const missing = [];
 
-            // Csoportosítjuk a kívánt toolokat (ha valamelyik verzió megvan, akkor a fő tool megvan)
+            // Group the desired tools
             const toolGroups = [
                 { key: 'mapextractor', names: ['map_extractor', 'mapextractor'] },
                 { key: 'vmap4extractor', names: ['vmap4_extractor', 'vmap4extractor'] },
@@ -740,19 +765,19 @@ const server = http.createServer((req, res) => {
                 }
             });
 
-            // Generáljuk le a segéd-szkripteket is a célmappába
+            // Also generate helper scripts in the destination folder
             if (exported.length > 0) {
                 const shContent = `#!/bin/bash
 # ============================================================
 #  AzerothCore Client Data Extractor (All-in-One)
-#  Futtasd ezt a scriptet a WoW 3.3.5a kliens főkönyvtárában!
+#  Run this script in the root directory of your WoW 3.3.5a client!
 # ============================================================
 
 set -e
 
 if [ ! -d "Data" ] && [ ! -d "data" ]; then
-    echo "HIBA: Úgy tűnik, nem a WoW kliens főkönyvtárában vagy."
-    echo "Másold be ezt a scriptet és az exportált toolokat a WoW kliens mellé!"
+    echo "ERROR: It seems you are not in the WoW client root directory."
+    echo "Copy this script and the exported tools next to your WoW client!"
     exit 1
 fi
 
@@ -775,50 +800,50 @@ if [ ! -f "$MMAP_GENERATOR" ]; then MMAP_GENERATOR="./mmaps_generator"; fi
 
 for bin in "$MAP_EXTRACTOR" "$VMAP_EXTRACTOR" "$VMAP_ASSEMBLER" "$MMAP_GENERATOR"; do
     if [ ! -f "$bin" ]; then
-        echo "HIBA: A(z) '$bin' tool nem található ebben a mappában!"
-        echo "Kérlek másold ide a kiexportált fájlokat."
+        echo "ERROR: The '$bin' tool was not found in this folder!"
+        echo "Please copy the exported files here."
         exit 1
     fi
     chmod +x "$bin"
 done
 
-echo "[1/4] Térképek kicsomagolása (Maps/DBC)..."
+echo "[1/4] Extracting maps (Maps/DBC)..."
 "$MAP_EXTRACTOR"
-echo "      ✓ Maps és DBC kicsomagolva!"
+echo "      ✓ Maps and DBC extracted!"
 echo ""
 
-echo "[2/4] Vmaps kicsomagolása (Vmaps Extractor)..."
+echo "[2/4] Extracting Vmaps (Vmaps Extractor)..."
 "$VMAP_EXTRACTOR"
-echo "      ✓ Vmaps kicsomagolva!"
+echo "      ✓ Vmaps extracted!"
 echo ""
 
-echo "[3/4] Vmaps összeállítása (Vmaps Assembler)..."
+echo "[3/4] Assembling Vmaps (Vmaps Assembler)..."
 mkdir -p vmaps
 "$VMAP_ASSEMBLER" Buildings vmaps
-echo "      ✓ Vmaps összeállítva!"
+echo "      ✓ Vmaps assembled!"
 echo ""
 
-echo "[4/4] Mmaps generálása (Mmaps Generator - ez eltarthat egy ideig)..."
+echo "[4/4] Generating Mmaps (Mmaps Generator - this may take a while)..."
 "$MMAP_GENERATOR"
-echo "      ✓ Mmaps generálva!"
+echo "      ✓ Mmaps generated!"
 echo ""
 
 echo "=============================================="
-echo "  MINDEN KÉSZ SIKERESEN!"
-echo "  A keletkezett 'dbc', 'maps', 'vmaps' és 'mmaps' mappákat"
-echo "  másold át a szerver 'configs/data/' könyvtárába."
+echo "  ALL COMPLETED SUCCESSFULLY!"
+echo "  Copy the generated 'dbc', 'maps', 'vmaps' and 'mmaps' folders"
+echo "  to the server 'configs/data/' directory."
 echo "=============================================="
 `;
 
                 const batContent = `@echo off
 REM ============================================================
 REM  AzerothCore Client Data Extractor (All-in-One - Windows)
-REM  Futtasd ezt a scriptet a WoW 3.3.5a kliens főkönyvtárában!
+REM  Run this script in the root directory of your WoW 3.3.5a client!
 REM ============================================================
 
 if not exist "Data" if not exist "data" (
-    echo HIBA: Ugy tunik, nem a WoW kliens fokonyvtaraban vagy.
-    echo Masold be ezt a scriptet es az exportalt toolokat a WoW kliens melle!
+    echo ERROR: It seems you are not in the WoW client root directory.
+    echo Copy this script and the exported tools next to your WoW client!
     pause
     exit /b 1
 )
@@ -860,36 +885,36 @@ if exist mmaps_generator.exe (set MMAP_GEN_BIN=mmaps_generator.exe) else (
     if exist mmaps_generator (set MMAP_GEN_BIN=mmaps_generator)
 )
 
-if "%MAP_EXTRACT_BIN%"=="" (echo HIBA: map_extractor nem talalhato! & pause & exit /b 1)
-if "%VMAP_EXTRACT_BIN%"=="" (echo HIBA: vmap4_extractor nem talalhato! & pause & exit /b 1)
-if "%VMAP_ASSEM_BIN%"=="" (echo HIBA: vmap4_assembler nem talalhato! & pause & exit /b 1)
-if "%MMAP_GEN_BIN%"=="" (echo HIBA: mmaps_generator nem talalhato! & pause & exit /b 1)
+if "%MAP_EXTRACT_BIN%"=="" (echo ERROR: map_extractor not found! & pause & exit /b 1)
+if "%VMAP_EXTRACT_BIN%"=="" (echo ERROR: vmap4_extractor not found! & pause & exit /b 1)
+if "%VMAP_ASSEM_BIN%"=="" (echo ERROR: vmap4_assembler not found! & pause & exit /b 1)
+if "%MMAP_GEN_BIN%"=="" (echo ERROR: mmaps_generator not found! & pause & exit /b 1)
 
-echo [1/4] Terkepek kicsomagolasa (Maps/DBC)...
+echo [1/4] Extracting maps (Maps/DBC)...
 %MAP_EXTRACT_BIN%
-echo       [OK] Maps es DBC kicsomagolva!
+echo       [OK] Maps and DBC extracted!
 echo.
 
-echo [2/4] Vmaps kicsomagolasa (Vmaps Extractor)...
+echo [2/4] Extracting Vmaps (Vmaps Extractor)...
 %VMAP_EXTRACT_BIN%
-echo       [OK] Vmaps kicsomagolva!
+echo       [OK] Vmaps extracted!
 echo.
 
-echo [3/4] Vmaps osszeallitasa (Vmaps Assembler)...
+echo [3/4] Assembling Vmaps (Vmaps Assembler)...
 if not exist vmaps mkdir vmaps
 %VMAP_ASSEM_BIN% Buildings vmaps
-echo       [OK] Vmaps osszeallitva!
+echo       [OK] Vmaps assembled!
 echo.
 
-echo [4/4] Mmaps generalasa (Mmaps Generator - ez eltarhat egy ideig)...
+echo [4/4] Generating Mmaps (Mmaps Generator - this may take a while)...
 %MMAP_GEN_BIN%
-echo       [OK] Mmaps generalva!
+echo       [OK] Mmaps generated!
 echo.
 
 echo ==============================================
-echo   MINDEN KESZ SIKERESEN!
-echo   A keletkezett 'dbc', 'maps', 'vmaps' es 'mmaps' mappakat
-echo   masold at a szerver 'configs/data/' konyvtaraba.
+echo   ALL COMPLETED SUCCESSFULLY!
+echo   Copy the generated 'dbc', 'maps', 'vmaps' and 'mmaps' folders
+echo   to the server 'configs/data/' directory.
 echo ==============================================
 pause
 `;
@@ -898,30 +923,30 @@ pause
                     fs.writeFileSync(path.join(toolsDir, 'extractor.bat'), batContent);
                     exported.push('extractor.sh', 'extractor.bat');
                 } catch (e) {
-                    addSystemLog(`Hiba a segéd-szkriptek generálásakor: ${e.message}`);
+                    addSystemLog(`Error generating helper scripts: ${e.message}`);
                 }
             }
 
             const msg = exported.length > 0
-                ? `Exportálva: ${exported.join(', ')}${missing.length ? ` | Nem található: ${missing.join(', ')}` : ''}`
-                : 'Nem találhatók tool binárisok! Előbb végezd el a Teljes Újrafordítást.';
+                ? `Exported: ${exported.join(', ')}${missing.length ? ` | Not found: ${missing.join(', ')}` : ''}`
+                : 'No tool binaries found! Complete Full Recompilation first.';
 
             addSystemLog(`Tool export: ${msg}`);
             res.writeHead(exported.length > 0 ? 200 : 404, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ success: exported.length > 0, exported, missing, message: msg }));
         } catch (err) {
             res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ message: `Export hiba: ${err.message}` }));
+            res.end(JSON.stringify({ message: `Export error: ${err.message}` }));
         }
         return;
     }
     // 404 Not Found
     res.writeHead(404);
-    res.end('404 A keresett lap nem található');
+    res.end('404 Page Not Found');
 });
 
 // ==========================================================================
-// C++ Modul és Újrafordítás (Rebuild) segédfüggvények
+// C++ Module and Rebuild helper functions
 // ==========================================================================
 
 function hasAdminPassword() {
@@ -936,7 +961,7 @@ function getAdminPassword() {
             return fs.readFileSync(PASSWORD_FILE, 'utf8').trim();
         }
     } catch (err) {
-        console.error('Hiba a jelszó olvasásakor:', err);
+        console.error('Error reading password:', err);
     }
     return null;
 }
@@ -946,7 +971,7 @@ function setAdminPassword(password) {
         fs.writeFileSync(PASSWORD_FILE, password.trim(), 'utf8');
         return true;
     } catch (err) {
-        console.error('Hiba a jelszó írásakor:', err);
+        console.error('Error writing password:', err);
         return false;
     }
 }
@@ -958,7 +983,7 @@ function getSavedModules() {
             return JSON.parse(content) || [];
         }
     } catch (err) {
-        console.error('Hiba a modules.json olvasásakor:', err);
+        console.error('Error reading modules.json:', err);
     }
     return [];
 }
@@ -968,7 +993,7 @@ function saveSavedModules(modules) {
         fs.writeFileSync(MODULES_CONFIG_FILE, JSON.stringify(modules, null, 2), 'utf8');
         return true;
     } catch (err) {
-        console.error('Hiba a modules.json írásakor:', err);
+        console.error('Error writing modules.json:', err);
         return false;
     }
 }
@@ -991,7 +1016,7 @@ function checkRebuildRequired() {
             });
         }
     } catch (err) {
-        console.error('Hiba a modules mappa olvasásakor:', err);
+        console.error('Error reading modules folder:', err);
     }
 
     const savedFolders = saved.map(url => {
@@ -1014,7 +1039,7 @@ function runCommandAsync(command, args, cwd) {
         const proc = spawn(command, args, { cwd });
         proc.on('exit', (code) => {
             if (code === 0) resolve();
-            else reject(new Error(`${command} hiba! Exit kód: ${code}`));
+            else reject(new Error(`${command} failed! Exit code: ${code}`));
         });
     });
 }
@@ -1036,7 +1061,7 @@ function runCommandWithLogs(command, args, cwd) {
 
         proc.on('exit', (code) => {
             if (code === 0) resolve();
-            else reject(new Error(`${command} hiba! Exit kód: ${code}`));
+            else reject(new Error(`${command} failed! Exit code: ${code}`));
         });
     });
 }
@@ -1046,18 +1071,18 @@ function runRebuild(mode) {
     rebuildStatus = 'building';
     mode = mode || 'full';
     
-    addSystemLog(`Szerver újrafordítás elindult (mód: ${mode}). Szerverek leállítása...`);
+    addSystemLog(`Server rebuild started (mode: ${mode}). Stopping servers...`);
     stopAuthserver();
     stopWorldserver();
     
-    // Várunk a folyamatok leállására
+    // Wait for processes to exit
     setTimeout(async () => {
         try {
             const saved = getSavedModules();
             const modulesDir = '/acore/modules';
             
-            // 1. Git Szinkronizálás
-            addSystemLog('1/3 Fázis: Git modulok szinkronizálása...');
+            // 1. Git Synchronization
+            addSystemLog('Phase 1/3: Synchronizing Git modules...');
             
             const savedMap = saved.map(url => {
                 let name = url.substring(url.lastIndexOf('/') + 1);
@@ -1065,7 +1090,7 @@ function runRebuild(mode) {
                 return { url, folder: name };
             });
 
-            // Törlés
+            // Cleanup removed modules
             if (fs.existsSync(modulesDir)) {
                 const actualFolders = fs.readdirSync(modulesDir).filter(file => {
                     const fullPath = path.join(modulesDir, file);
@@ -1074,7 +1099,7 @@ function runRebuild(mode) {
 
                 for (const folder of actualFolders) {
                     if (!savedMap.some(item => item.folder === folder)) {
-                        addSystemLog(`Eltávolított modul könyvtárának törlése: ${folder}...`);
+                        addSystemLog(`Deleting removed module directory: ${folder}...`);
                         fs.rmSync(path.join(modulesDir, folder), { recursive: true, force: true });
                     }
                 }
@@ -1082,43 +1107,43 @@ function runRebuild(mode) {
                 fs.mkdirSync(modulesDir, { recursive: true });
             }
 
-            // Letöltés
+            // Download new modules
             for (const item of savedMap) {
                 const folderPath = path.join(modulesDir, item.folder);
                 if (!fs.existsSync(folderPath)) {
-                    addSystemLog(`Új modul letöltése: ${item.folder} tól ${item.url}...`);
+                    addSystemLog(`Downloading new module: ${item.folder} from ${item.url}...`);
                     await runCommandAsync('git', ['clone', item.url, folderPath], '/acore');
                 }
             }
 
-            // 2. CMake Konfiguráció (csak full módban)
+            // 2. CMake Configuration (full mode only)
             if (mode === 'full') {
-                addSystemLog('2/3 Fázis: CMake konfiguráció futtatása...');
+                addSystemLog('Phase 2/3: Running CMake configuration...');
                 if (!fs.existsSync('/acore/build')) {
                     fs.mkdirSync('/acore/build', { recursive: true });
                 }
                 await runCommandWithLogs('cmake', ['..', '-DCMAKE_INSTALL_PREFIX=/opt/acore', '-DTOOLS_BUILD=all'], '/acore/build');
             } else {
-                addSystemLog('2/3 Fázis: CMake kihagyva (make-only mód).');
+                addSystemLog('Phase 2/3: CMake skipped (make-only mode).');
             }
 
-            // 3. Make Fordítás & Telepítés
-            addSystemLog('3/3 Fázis: C++ kód fordítása és telepítése (ez eltarthat 10-20 percig)...');
+            // 3. Make Compilation & Installation
+            addSystemLog('Phase 3/3: Compiling and installing C++ code (this may take 10-20 minutes)...');
             const cpuCount = os.cpus().length || 2;
             await runCommandWithLogs('make', [`-j${cpuCount}`, 'install'], '/acore/build');
 
-            addSystemLog('AZ ÚJRAFORDÍTÁS SIKERESEN BEFEJEZŐDÖTT!');
+            addSystemLog('REBUILD COMPLETED SUCCESSFULLY!');
             rebuildStatus = 'idle';
             
-            // Szerverek újraindítása
+            // Restart servers
             startAuthserver();
             setTimeout(startWorldserver, 3000);
 
         } catch (err) {
-            addSystemLog(`HIBA: A fordítási folyamat megszakadt: ${err.message}`);
+            addSystemLog(`ERROR: Compilation process interrupted: ${err.message}`);
             rebuildStatus = 'idle';
             
-            // Szerverek újraindítása
+            // Restart servers
             startAuthserver();
             setTimeout(startWorldserver, 3000);
         }
@@ -1126,32 +1151,32 @@ function runRebuild(mode) {
 }
 
 // ==========================================================================
-// Rendszerindítás & Leállítás kezelés
+// Startup & Shutdown handling
 // ==========================================================================
 
 server.listen(PORT, '0.0.0.0', () => {
-    addSystemLog(`Webes vezérlőpult elindult a http://0.0.0.0:${PORT} címen.`);
+    addSystemLog(`Web dashboard started at http://0.0.0.0:${PORT}`);
     
-    // Kezdeti folyamatok elindítása
+    // Start initial processes
     startAuthserver();
     
-    // Kicsit várunk a worldserverrel, hogy a MySQL biztosan elérhető legyen
+    // Wait a moment for worldserver to ensure MySQL is available
     setTimeout(startWorldserver, 3000);
 });
 
-// Statisztikák lekérdezése 2 másodpercenként
+// Query stats every 2 seconds
 setInterval(sendStatsUpdate, 2000);
 
-// Graceful exit handler konténer leállításakor
+// Graceful exit handler on container shutdown
 function gracefulShutdown(signal) {
-    addSystemLog(`Leállítási jelzés érkezett (${signal}). Szerverek leállítása...`);
+    addSystemLog(`Shutdown signal received (${signal}). Stopping servers...`);
     
     stopAuthserver();
     stopWorldserver();
 
-    // Várunk a folyamatok lefutására, majd bezárjuk a Node.js-t
+    // Wait for processes to exit, then close Node.js
     setTimeout(() => {
-        addSystemLog('Webszerver leáll. Viszlát!');
+        addSystemLog('Web server shutting down. Goodbye!');
         process.exit(0);
     }, 4000);
 }

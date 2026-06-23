@@ -1,19 +1,19 @@
 #!/bin/bash
 
-echo "[ACORE] Image ellenőrzése..."
+echo "[ACORE] Checking image..."
 
 if ! docker images | grep -q "^acore "; then
-    echo "[ACORE] Image nem található, build indul..."
+    echo "[ACORE] Image not found, starting build..."
     docker build -t acore .
     if [ $? -ne 0 ]; then
-        echo "[ACORE] HIBA: A build sikertelen volt!"
+        echo "[ACORE] ERROR: Build failed!"
         exit 1
     fi
 else
-    echo "[ACORE] Image megtalálva, build kihagyva."
+    echo "[ACORE] Image found, skipping build."
 fi
 
-echo "[ACORE] Konténer indítása..."
+echo "[ACORE] Starting container..."
 
 docker run -it --rm \
     -v "$(pwd)/configs:/host-configs" \

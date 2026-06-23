@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="hu">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AzerothCore - Adminisztráció</title>
+    <title>AzerothCore - Administration</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Outfit:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -15,34 +15,34 @@
     <!-- Login Overlay -->
     <div id="login-overlay" class="login-overlay">
         <div class="wow-card login-card">
-            <h2 class="card-title text-center" id="login-card-title">Gépész Bejelentkezés</h2>
-            <p class="card-desc text-center" id="login-card-desc">Add meg a titkos adminisztrátori jelszót a szerver kezeléséhez.</p>
+            <h2 class="card-title text-center" id="login-card-title">Administrator Login</h2>
+            <p class="card-desc text-center" id="login-card-desc">Enter the administrator password to manage the server.</p>
             
             <!-- Login Form -->
             <form id="login-form" autocomplete="off">
                 <div class="input-group">
-                    <label for="admin-password">Adminisztrátor Jelszó</label>
+                    <label for="admin-password">Administrator Password</label>
                     <input type="password" id="admin-password" required placeholder="••••••••">
                 </div>
-                <button type="submit" id="btn-login" class="wow-btn wow-btn-primary full-width">Belépés</button>
+                <button type="submit" id="btn-login" class="wow-btn wow-btn-primary full-width">Login</button>
             </form>
 
-            <!-- Setup Form (Első indítás) -->
+            <!-- Setup Form (First Start) -->
             <form id="setup-form" class="hidden" autocomplete="off">
                 <div class="input-group">
-                    <label for="setup-password">Új Adminisztrátor Jelszó</label>
-                    <input type="password" id="setup-password" required minlength="6" placeholder="Legalább 6 karakter...">
+                    <label for="setup-password">New Administrator Password</label>
+                    <input type="password" id="setup-password" required minlength="6" placeholder="At least 6 characters...">
                 </div>
                 <div class="input-group">
-                    <label for="setup-password-confirm">Jelszó Megerősítése</label>
-                    <input type="password" id="setup-password-confirm" required minlength="6" placeholder="Jelszó újra...">
+                    <label for="setup-password-confirm">Confirm Password</label>
+                    <input type="password" id="setup-password-confirm" required minlength="6" placeholder="Password again...">
                 </div>
-                <button type="submit" id="btn-setup" class="wow-btn wow-btn-primary full-width">Mentés & Belépés</button>
+                <button type="submit" id="btn-setup" class="wow-btn wow-btn-primary full-width">Save & Login</button>
             </form>
 
             <div id="login-message" class="message-box hidden error"></div>
             <div class="back-to-portal-container">
-                <a href="/" class="admin-link">&larr; Vissza a Játékos Portálra</a>
+                <a href="/" class="admin-link">&larr; Back to Player Portal</a>
             </div>
         </div>
     </div>
@@ -51,152 +51,152 @@
     <div id="admin-content" class="admin-container hidden">
         <header class="admin-header">
             <div class="header-left">
-                <h1>Szerver Vezérlőpult</h1>
-                <p class="subtitle">AzerothCore Rendszerkezelés</p>
+                <h1>Server Dashboard</h1>
+                <p class="subtitle">AzerothCore System Management</p>
             </div>
             <div class="header-right">
                 <div class="host-info">
-                    <span>Host Állapot: <strong class="highlight">Aktív</strong></span>
-                    <button onclick="logout()" class="wow-btn wow-btn-secondary" id="btn-logout">Kijelentkezés</button>
+                    <span>Host Status: <strong class="highlight">Active</strong></span>
+                    <button onclick="logout()" class="wow-btn wow-btn-secondary" id="btn-logout">Logout</button>
                 </div>
             </div>
         </header>
 
         <div class="admin-grid">
-            <!-- Bal oldal: Szerverek / Folyamatok Kezelése -->
+            <!-- Left side: Process Control -->
             <aside class="control-panel">
-                <h2 class="section-title">Szerver Státusz & Vezérlés</h2>
+                <h2 class="section-title">Server Status & Control</h2>
                 
-                <!-- MySQL Kártya -->
+                <!-- MySQL Card -->
                 <div class="process-card" id="card-mysql">
                     <div class="card-header-status">
-                        <h3>MySQL Adatbázis</h3>
+                        <h3>MySQL Database</h3>
                         <span class="status-badge-inline"><span class="status-dot offline"></span><span class="status-lbl">Offline</span></span>
                     </div>
                     <div class="stats-row">
                         <div class="stat-box">
-                            <span class="stat-label">CPU Használat</span>
+                            <span class="stat-label">CPU Usage</span>
                             <div class="progress-bar-container">
                                 <div class="progress-bar" id="mysql-cpu-bar" style="width: 0%"></div>
                             </div>
                             <span class="stat-value" id="mysql-cpu-val">0.0%</span>
                         </div>
                         <div class="stat-box">
-                            <span class="stat-label">Memória (RAM)</span>
+                            <span class="stat-label">Memory (RAM)</span>
                             <span class="stat-value" id="mysql-ram-val">0 MB</span>
                         </div>
                     </div>
                     <div class="action-buttons disabled-actions">
-                        <span class="note-text">Rendszer által felügyelt</span>
+                        <span class="note-text">Managed by System</span>
                     </div>
                 </div>
 
-                <!-- Authserver Kártya -->
+                <!-- Authserver Card -->
                 <div class="process-card" id="card-authserver">
                     <div class="card-header-status">
-                        <h3>Authserver (Hitelesítő)</h3>
+                        <h3>Authserver (Authentication)</h3>
                         <span class="status-badge-inline"><span class="status-dot offline"></span><span class="status-lbl">Offline</span></span>
                     </div>
                     <div class="stats-row">
                         <div class="stat-box">
-                            <span class="stat-label">CPU Használat</span>
+                            <span class="stat-label">CPU Usage</span>
                             <div class="progress-bar-container">
                                 <div class="progress-bar" id="authserver-cpu-bar" style="width: 0%"></div>
                             </div>
                             <span class="stat-value" id="authserver-cpu-val">0.0%</span>
                         </div>
                         <div class="stat-box">
-                            <span class="stat-label">Memória (RAM)</span>
+                            <span class="stat-label">Memory (RAM)</span>
                             <span class="stat-value" id="authserver-ram-val">0 MB</span>
                         </div>
                     </div>
                     <div class="action-buttons">
-                        <button onclick="controlProcess('authserver', 'start')" class="wow-btn wow-btn-success btn-start" id="btn-auth-start">Indítás</button>
-                        <button onclick="controlProcess('authserver', 'stop')" class="wow-btn wow-btn-danger btn-stop" id="btn-auth-stop">Leállítás</button>
+                        <button onclick="controlProcess('authserver', 'start')" class="wow-btn wow-btn-success btn-start" id="btn-auth-start">Start</button>
+                        <button onclick="controlProcess('authserver', 'stop')" class="wow-btn wow-btn-danger btn-stop" id="btn-auth-stop">Stop</button>
                         <button onclick="controlProcess('authserver', 'restart')" class="wow-btn wow-btn-secondary btn-restart" id="btn-auth-restart">Restart</button>
                     </div>
                 </div>
 
-                <!-- Worldserver Kártya -->
+                <!-- Worldserver Card -->
                 <div class="process-card" id="card-worldserver">
                     <div class="card-header-status">
-                        <h3>Worldserver (Játékvilág)</h3>
+                        <h3>Worldserver (Game World)</h3>
                         <span class="status-badge-inline"><span class="status-dot offline"></span><span class="status-lbl">Offline</span></span>
                     </div>
                     <div class="stats-row">
                         <div class="stat-box">
-                            <span class="stat-label">CPU Használat</span>
+                            <span class="stat-label">CPU Usage</span>
                             <div class="progress-bar-container">
                                 <div class="progress-bar" id="worldserver-cpu-bar" style="width: 0%"></div>
                             </div>
                             <span class="stat-value" id="worldserver-cpu-val">0.0%</span>
                         </div>
                         <div class="stat-box">
-                            <span class="stat-label">Memória (RAM)</span>
+                            <span class="stat-label">Memory (RAM)</span>
                             <span class="stat-value" id="worldserver-ram-val">0 MB</span>
                         </div>
                     </div>
                     <div class="action-buttons">
-                        <button onclick="controlProcess('worldserver', 'start')" class="wow-btn wow-btn-success btn-start" id="btn-world-start">Indítás</button>
-                        <button onclick="controlProcess('worldserver', 'stop')" class="wow-btn wow-btn-danger btn-stop" id="btn-world-stop">Leállítás</button>
+                        <button onclick="controlProcess('worldserver', 'start')" class="wow-btn wow-btn-success btn-start" id="btn-world-start">Start</button>
+                        <button onclick="controlProcess('worldserver', 'stop')" class="wow-btn wow-btn-danger btn-stop" id="btn-world-stop">Stop</button>
                         <button onclick="controlProcess('worldserver', 'restart')" class="wow-btn wow-btn-secondary btn-restart" id="btn-world-restart">Restart</button>
                     </div>
                 </div>
 
-                <!-- C++ Modul Kezelő Kártya -->
+                <!-- C++ Module Manager Card -->
                 <div class="process-card" id="card-modules">
                     <div class="card-header-status">
-                        <h3>C++ Modul Kezelő</h3>
+                        <h3>C++ Module Manager</h3>
                         <span class="status-badge-inline" id="module-status-badge">
                             <span class="status-dot online" id="module-status-dot"></span>
-                            <span class="status-lbl" id="module-status-lbl">Kész</span>
+                            <span class="status-lbl" id="module-status-lbl">Ready</span>
                         </span>
                     </div>
                     <div class="module-manager-body">
-                        <!-- Modul lista -->
+                        <!-- Module List -->
                         <div class="module-list-container">
                             <ul class="module-list" id="module-list">
-                                <li class="module-item loading">Modulok betöltése...</li>
+                                <li class="module-item loading">Loading modules...</li>
                             </ul>
                         </div>
                         
-                        <!-- Új modul felvétele -->
+                        <!-- Add Custom Module -->
                         <form id="add-module-form" class="module-add-form" autocomplete="off">
                             <input type="text" id="new-module-url" placeholder="Git URL (https://github.com/...)" required>
                             <button type="submit" class="wow-btn wow-btn-secondary" id="btn-add-module">+</button>
                         </form>
                     </div>
                     <div class="module-rebuild-container hidden" id="rebuild-warning-box">
-                        <p class="rebuild-warning-text">Módosítás történt. Újrafordítás szükséges!</p>
+                        <p class="rebuild-warning-text">Changes detected. Recompilation required!</p>
                     </div>
                 </div>
 
-                <!-- Server Build Kártya -->
+                <!-- Server Build Card -->
                 <div class="process-card build-card" id="card-build">
                     <div class="card-header-status">
-                        <h3>⚙️ Szerver Build</h3>
+                        <h3>⚙️ Server Build</h3>
                         <span class="status-badge-inline" id="build-status-badge">
                             <span class="status-dot online" id="build-status-dot"></span>
-                            <span class="status-lbl" id="build-status-lbl">Kész</span>
+                            <span class="status-lbl" id="build-status-lbl">Ready</span>
                         </span>
                     </div>
                     <div class="build-card-body">
-                        <p class="build-desc">CMake újragenerálástól teljes fordítás és telepítés. A szerverek automatikusan leállnak majd újraindulnak.</p>
+                        <p class="build-desc">Full compilation and installation from CMake generation. Servers will automatically stop and restart.</p>
                         <div class="build-steps">
-                            <span class="build-step" id="bstep-1">1. Szerverek leállítása</span>
+                            <span class="build-step" id="bstep-1">1. Stop servers</span>
                             <span class="build-step-arrow">→</span>
                             <span class="build-step" id="bstep-2">2. CMake generate</span>
                             <span class="build-step-arrow">→</span>
                             <span class="build-step" id="bstep-3">3. make install</span>
                             <span class="build-step-arrow">→</span>
-                            <span class="build-step" id="bstep-4">4. Újraindítás</span>
+                            <span class="build-step" id="bstep-4">4. Restart</span>
                         </div>
                         <div class="action-buttons build-buttons">
                             <button onclick="triggerRebuild('full')" class="wow-btn wow-btn-primary" id="btn-trigger-rebuild" style="flex:2">
-                                🔨 Teljes Újrafordítás (cmake + make)
+                                🔨 Full Recompilation (cmake + make)
                             </button>
                             <button onclick="triggerRebuild('make-only')" class="wow-btn wow-btn-secondary" id="btn-trigger-make" style="flex:1">
-                                ⚡ Csak make install
+                                ⚡ Only make install
                             </button>
                         </div>
                         <div id="build-progress-bar-container" class="build-progress-container hidden">
@@ -206,45 +206,45 @@
                 </div>
             </aside>
 
-            <!-- Jobb oldal: Konzolos Napló és Parancsküldés -->
+            <!-- Right side: Console Logs & Interactive Command Field -->
             <main class="console-panel">
                 <div class="console-header">
-                    <h2 class="section-title">Interaktív GM Konzol</h2>
+                    <h2 class="section-title">Interactive GM Console</h2>
                     <div class="console-filters">
-                        <button onclick="filterLogs('all')" class="filter-btn active" id="filter-all">Összes</button>
+                        <button onclick="filterLogs('all')" class="filter-btn active" id="filter-all">All</button>
                         <button onclick="filterLogs('world')" class="filter-btn" id="filter-world">Worldserver</button>
                         <button onclick="filterLogs('auth')" class="filter-btn" id="filter-auth">Authserver</button>
                     </div>
                 </div>
 
-                <!-- Terminál Kijelző -->
+                <!-- Terminal Display -->
                 <div class="terminal-wrapper">
                     <div class="terminal-body" id="terminal-output">
-                        <div class="terminal-line system-msg">[Rendszer] Csatlakozás a szerver naplófolyamához...</div>
+                        <div class="terminal-line system-msg">[System] Connecting to server log stream...</div>
                     </div>
                 </div>
 
-                <!-- Parancsküldő mező -->
+                <!-- Interactive console form -->
                 <form id="console-form" autocomplete="off" class="console-input-container">
                     <span class="console-prompt">&gt;</span>
-                    <input type="text" id="console-input" placeholder="Írj be egy GM parancsot (pl. .server info vagy .reload all) és nyomj Entert..." disabled>
-                    <button type="submit" class="wow-btn wow-btn-primary" id="btn-send-command" disabled>Küldés</button>
+                    <input type="text" id="console-input" placeholder="Enter a GM command (e.g. .server info or .reload all) and press Enter..." disabled>
+                    <button type="submit" class="wow-btn wow-btn-primary" id="btn-send-command" disabled>Send</button>
                 </form>
 
-                <!-- Gyors Parancsok Gombjai -->
+                <!-- Quick Command Buttons -->
                 <div class="quick-commands">
-                    <span class="quick-lbl">Gyorsparancsok:</span>
-                    <button onclick="sendQuickCommand('.server info')" class="quick-cmd-btn" id="qcmd-info">Szerver Infó</button>
-                    <button onclick="sendQuickCommand('.server status')" class="quick-cmd-btn" id="qcmd-status">Szerver Státusz</button>
-                    <button onclick="sendQuickCommand('.reload all')" class="quick-cmd-btn" id="qcmd-reload">Konfiguráció Újratöltése</button>
-                    <button onclick="sendQuickCommand('.account create ')" class="quick-cmd-btn" id="qcmd-acc">Fiók Készítés</button>
+                    <span class="quick-lbl">Quick commands:</span>
+                    <button onclick="sendQuickCommand('.server info')" class="quick-cmd-btn" id="qcmd-info">Server Info</button>
+                    <button onclick="sendQuickCommand('.server status')" class="quick-cmd-btn" id="qcmd-status">Server Status</button>
+                    <button onclick="sendQuickCommand('.reload all')" class="quick-cmd-btn" id="qcmd-reload">Reload Configuration</button>
+                    <button onclick="sendQuickCommand('.account create ')" class="quick-cmd-btn" id="qcmd-acc">Create Account</button>
                 </div>
             </main>
         </div>
         
         <footer class="admin-footer">
-            <a href="/" class="admin-link">&larr; Vissza a Játékos Portálra</a>
-            <p>&copy; 2026 AzerothCore Rendszerkezelő. Fejlesztette: Antigravity</p>
+            <a href="/" class="admin-link">&larr; Back to Player Portal</a>
+            <p>&copy; 2026 AzerothCore System Dashboard. Developed by: Antigravity</p>
         </footer>
     </div>
 

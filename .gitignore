@@ -5,6 +5,7 @@
 /configs/*.conf
 /configs/modules/*.conf
 /configs/admin_password.txt
+/configs/modules.json
 
 # Ignore WoW client data files (dbc, maps, vmaps, mmaps)
 /configs/data/*

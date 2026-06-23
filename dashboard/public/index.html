@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="hu">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AzerothCore - Játékos Portál</title>
+    <title>AzerothCore - Player Portal</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -13,56 +13,56 @@
     <div class="glow-container"></div>
     
     <div class="portal-container">
-        <!-- Fejléc -->
+        <!-- Header -->
         <header class="portal-header">
             <h1 id="portal-title">AzerothCore</h1>
             <p class="subtitle">WotLK Private Server (3.3.5a)</p>
             
             <div class="status-badge" id="server-status-badge">
                 <span class="status-dot offline" id="status-dot"></span>
-                <span class="status-text" id="status-text">Szerver lekérdezése...</span>
+                <span class="status-text" id="status-text">Querying server...</span>
             </div>
         </header>
 
-        <!-- Fő tartalom -->
+        <!-- Main Content -->
         <main class="portal-grid">
             
-            <!-- Regisztráció -->
+            <!-- Registration -->
             <section class="wow-card" id="reg-card">
-                <h2 class="card-title">Fiók Létrehozása</h2>
-                <p class="card-desc">Hozz létre egy új játékos fiókot a szerverre a kaland megkezdéséhez.</p>
+                <h2 class="card-title">Create Account</h2>
+                <p class="card-desc">Create a new player account on the server to begin the adventure.</p>
                 
                 <form id="register-form" autocomplete="off">
                     <div class="input-group">
-                        <label for="reg-username">Felhasználónév</label>
-                        <input type="text" id="reg-username" required minlength="3" maxlength="16" placeholder="pl. Arthas123" pattern="^[a-zA-Z0-9]+$">
-                        <small>Csak betűk és számok megengedettek.</small>
+                        <label for="reg-username">Username</label>
+                        <input type="text" id="reg-username" required minlength="3" maxlength="16" placeholder="e.g. Arthas123" pattern="^[a-zA-Z0-9]+$">
+                        <small>Only letters and numbers are allowed.</small>
                     </div>
                     
                     <div class="input-group">
-                        <label for="reg-password">Jelszó</label>
+                        <label for="reg-password">Password</label>
                         <input type="password" id="reg-password" required minlength="4" placeholder="••••••••">
                     </div>
 
                     <div class="input-group">
-                        <label for="reg-confirm-password">Jelszó Megerősítése</label>
+                        <label for="reg-confirm-password">Confirm Password</label>
                         <input type="password" id="reg-confirm-password" required minlength="4" placeholder="••••••••">
                     </div>
                     
                     <button type="submit" id="btn-register" class="wow-btn wow-btn-primary">
-                        Fiók Létrehozása
+                        Create Account
                     </button>
                 </form>
                 
                 <div id="register-message" class="message-box hidden"></div>
             </section>
 
-            <!-- Szerver információk -->
+            <!-- Server Information -->
             <section class="wow-card" id="info-card">
-                <h2 class="card-title">Csatlakozás</h2>
+                <h2 class="card-title">How to Join</h2>
                 
                 <div class="info-item">
-                    <span class="info-label">Kliens verzió</span>
+                    <span class="info-label">Client version</span>
                     <span class="info-val highlight">3.3.5a (Wrath of the Lich King)</span>
                 </div>
                 
@@ -72,28 +72,28 @@
                 </div>
 
                 <div class="info-item">
-                    <span class="info-label">Aktív Játékosok</span>
+                    <span class="info-label">Active Players</span>
                     <span class="info-val" id="active-players">0</span>
                 </div>
 
                 <div class="realmlist-box">
-                    <span class="realmlist-title">Realmlist Beállítása</span>
-                    <p class="realmlist-desc">Másold ezt a sort a WoW mappádban lévő <code>Data/enUS/realmlist.wtf</code> (vagy <code>huHU</code>) fájlba:</p>
+                    <span class="realmlist-title">Set Realmlist</span>
+                    <p class="realmlist-desc">Copy this line to the <code>Data/enUS/realmlist.wtf</code> (or your locale equivalent) file in your WoW folder:</p>
                     <div class="copy-container">
                         <input type="text" id="realmlist-text" readonly value="set realmlist localhost">
-                        <button onclick="copyRealmlist()" class="wow-btn wow-btn-secondary" id="btn-copy">Másolás</button>
+                        <button onclick="copyRealmlist()" class="wow-btn wow-btn-secondary" id="btn-copy">Copy</button>
                     </div>
                 </div>
                 
                 <div class="admin-link-container">
-                    <a href="/admin" class="admin-link" id="link-to-admin">Szerver Adminisztráció &rarr;</a>
+                    <a href="/admin" class="admin-link" id="link-to-admin">Server Administration &rarr;</a>
                 </div>
             </section>
 
         </main>
         
         <footer class="portal-footer">
-            <p>&copy; 2026 AzerothCore Bots Server. Minden jog fenntartva.</p>
+            <p>&copy; 2026 AzerothCore Bots Server. All rights reserved.</p>
         </footer>
     </div>
 

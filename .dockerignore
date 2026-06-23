@@ -1,0 +1,14 @@
+# A kinyert játék adatfájlok NEM kerülnek bele a Docker image-be.
+# Ezeket runtime volume-ként mountolja a szerver (/host-configs/data).
+configs/data/
+
+# Git metadata
+.git/
+.gitignore
+
+# Felesleges scriptek és dev fájlok
+wow-tools/
+extractor.sh
+extractor.bat
+export-tools.sh
+export-tools.bat
