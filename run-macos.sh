@@ -16,6 +16,7 @@ fi
 echo "[ACORE] Starting container..."
 
 docker run -it --rm \
+    --name acore-server \
     -v "$(pwd)/configs:/host-configs" \
     -v acore-bin:/opt/acore \
     -v acore-source:/acore \

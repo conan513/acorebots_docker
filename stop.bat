@@ -1,0 +1,3 @@
+@echo off
+echo [ACORE] Stopping AzerothCore container...
+docker stop acore-server

@@ -203,6 +203,7 @@ function handleProcessOutput(process, name) {
         
         lines.forEach(line => {
             addLog(name, line);
+            console.log(`[${name.toUpperCase()}] ${line}`);
             
             // Automatically reply "yes" to database upgrade and confirmation prompts
             if (name === 'world' && (line.includes('[yes (default) / no]:') || line.includes('Do you want to create it?') || line.includes('Do you want to apply'))) {
@@ -233,6 +234,7 @@ function handleProcessOutput(process, name) {
         data.toString().split('\n').forEach(line => {
             if (line.trim()) {
                 addLog(name, `[ERR] ${line}`);
+                console.error(`[${name.toUpperCase()} ERR] ${line}`);
             }
         });
     });
@@ -1052,6 +1054,7 @@ function runCommandWithLogs(command, args, cwd) {
             data.toString().split('\n').forEach(line => {
                 if (line.trim()) {
                     addLog('compiler', line);
+                    console.log(`[COMPILER] ${line}`);
                 }
             });
         };

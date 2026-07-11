@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Set umask to ensure files created in the container are writeable on the host
+umask 000
+
 HOST_CONFIG_DIR="/host-configs"
 CONTAINER_CONFIG_DIR="/opt/acore/etc"
 
@@ -103,6 +106,9 @@ fi
 # 6) Copy updated configs back to container config directory
 cp "$HOST_CONFIG_DIR/authserver.conf" "$CONTAINER_CONFIG_DIR/authserver.conf"
 cp "$HOST_CONFIG_DIR/worldserver.conf" "$CONTAINER_CONFIG_DIR/worldserver.conf"
+
+# Ensure all config files and folders on the host are readable/writable by the host user
+chmod -R a+rw "$HOST_CONFIG_DIR"
 
 echo "[ACORE] Config synchronization completed."
 
