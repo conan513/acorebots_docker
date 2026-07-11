@@ -13,7 +13,11 @@ WORKDIR /acore
 RUN git clone https://github.com/mod-playerbots/mod-playerbots.git modules/mod-playerbots
 
 RUN mkdir build && cd build && \
-    cmake .. -DCMAKE_INSTALL_PREFIX=/opt/acore -DTOOLS_BUILD=all && \
+    cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DTOOLS=0 \
+        -DPLAYERBOTS=ON \
+        -DCMAKE_INSTALL_PREFIX=/opt/acore && \
     make -j$(nproc) && make install
 
 RUN mkdir -p /opt/acore/data && \
