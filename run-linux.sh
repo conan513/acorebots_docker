@@ -13,10 +13,25 @@ else
     echo "[ACORE] Image found, skipping build."
 fi
 
+if [ -z "$REALM_IP" ]; then
+    # Try to get the IP address of the default route interface
+    REALM_IP=$(ip route get 1 2>/dev/null | awk '{print $7}')
+    # Fallback to hostname -I
+    if [ -z "$REALM_IP" ]; then
+        REALM_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+    fi
+fi
+
+if [ -z "$REALM_IP" ]; then
+    REALM_IP="127.0.0.1"
+fi
+
+echo "[ACORE] Detected Host LAN IP: $REALM_IP"
 echo "[ACORE] Starting container..."
 
 docker run -it --rm \
     --name acore-server \
+    -e REALM_IP="$REALM_IP" \
     -v "$(pwd)/configs:/host-configs" \
     -v acore-bin:/opt/acore \
     -v acore-source:/acore \

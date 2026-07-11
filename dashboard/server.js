@@ -217,6 +217,7 @@ function handleProcessOutput(process, name) {
                     worldState = 'running';
                     worldStartTime = Date.now();
                     addSystemLog('Worldserver started successfully, ready for play!');
+                    updateRealmlistIp();
                 }
             }
 
@@ -950,6 +951,42 @@ pause
 // ==========================================================================
 // C++ Module and Rebuild helper functions
 // ==========================================================================
+
+function updateRealmlistIp() {
+    return new Promise((resolve) => {
+        let realmIp = process.env.REALM_IP || '';
+        
+        if (!realmIp) {
+            // Auto-detect inside container as fallback
+            const interfaces = os.networkInterfaces();
+            for (const name of Object.keys(interfaces)) {
+                for (const iface of interfaces[name]) {
+                    if (iface.family === 'IPv4' && !iface.internal) {
+                        realmIp = iface.address;
+                        break;
+                    }
+                }
+                if (realmIp) break;
+            }
+        }
+        
+        if (!realmIp) {
+            realmIp = '127.0.0.1';
+        }
+        
+        addSystemLog(`Updating realmlist address in database to: ${realmIp}`);
+        
+        const query = `UPDATE realmlist SET address = '${realmIp}';`;
+        exec(`mysql -uacore -pacorepass -D acore_auth -e "${query}"`, (err, stdout, stderr) => {
+            if (err) {
+                addSystemLog(`Failed to update realmlist address: ${err.message || stderr}`);
+            } else {
+                addSystemLog(`Successfully updated realmlist address to ${realmIp} in database.`);
+            }
+            resolve();
+        });
+    });
+}
 
 function hasAdminPassword() {
     if (process.env.ADMIN_PASSWORD) return true;
