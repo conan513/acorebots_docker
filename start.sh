@@ -186,4 +186,6 @@ chmod -R a+rw "$HOST_CONFIG_DIR"
 echo "[ACORE] Config synchronization completed."
 
 echo "[ACORE] Starting Web Dashboard (which will control the Auth and World servers)..."
+# Reset umask to standard 022 so that temporary files (like mysql config files) are not world-writable
+umask 022
 exec node /opt/dashboard/server.js
