@@ -71,6 +71,17 @@ sed -i 's/^WorldDatabaseInfo.*/WorldDatabaseInfo = "127.0.0.1;3310;acore;acorepa
 sed -i 's/^CharacterDatabaseInfo.*/CharacterDatabaseInfo = "127.0.0.1;3310;acore;acorepass;acore_characters"/' "$HOST_CONFIG_DIR/worldserver.conf"
 sed -i 's/^DataDir.*/DataDir = "\/host-configs\/data"/' "$HOST_CONFIG_DIR/worldserver.conf"
 
+# 4/b) Performance tuning - worldserver
+echo "[ACORE] Applying worldserver performance optimizations..."
+sed -i 's/^MapUpdate\.Threads.*/MapUpdate.Threads = 2/' "$HOST_CONFIG_DIR/worldserver.conf"
+sed -i 's/^Network\.Threads.*/Network.Threads = 2/' "$HOST_CONFIG_DIR/worldserver.conf"
+sed -i 's/^LoginDatabase\.WorkerThreads.*/LoginDatabase.WorkerThreads     = 2/' "$HOST_CONFIG_DIR/worldserver.conf"
+sed -i 's/^WorldDatabase\.WorkerThreads.*/WorldDatabase.WorkerThreads     = 2/' "$HOST_CONFIG_DIR/worldserver.conf"
+sed -i 's/^CharacterDatabase\.WorkerThreads.*/CharacterDatabase.WorkerThreads = 4/' "$HOST_CONFIG_DIR/worldserver.conf"
+sed -i 's/^LoginDatabase\.SynchThreads.*/LoginDatabase.SynchThreads     = 2/' "$HOST_CONFIG_DIR/worldserver.conf"
+sed -i 's/^WorldDatabase\.SynchThreads.*/WorldDatabase.SynchThreads     = 2/' "$HOST_CONFIG_DIR/worldserver.conf"
+sed -i 's/^CharacterDatabase\.SynchThreads.*/CharacterDatabase.SynchThreads = 2/' "$HOST_CONFIG_DIR/worldserver.conf"
+
 # 5) Synchronizing Playerbots config
 echo "[ACORE] Synchronizing Playerbots config..."
 
@@ -97,6 +108,13 @@ if [ -f "$PLAYERBOTS_DIST" ]; then
 
     # Overwrite database config lines in playerbots config
     sed -i 's/^PlayerbotsDatabaseInfo.*/PlayerbotsDatabaseInfo = "127.0.0.1;3310;acore;acorepass;acore_playerbots"/' "$PLAYERBOTS_HOST"
+
+    # Performance tuning - playerbots
+    echo "[ACORE] Applying playerbots performance optimizations..."
+    sed -i 's/^AiPlayerbot\.ReactDelay.*/AiPlayerbot.ReactDelay = 200/' "$PLAYERBOTS_HOST"
+    sed -i 's/^AiPlayerbot\.IterationsPerTick.*/AiPlayerbot.IterationsPerTick = 5/' "$PLAYERBOTS_HOST"
+    sed -i 's/^PlayerbotsDatabase\.WorkerThreads.*/PlayerbotsDatabase.WorkerThreads     = 4/' "$PLAYERBOTS_HOST"
+    sed -i 's/^PlayerbotsDatabase\.SynchThreads.*/PlayerbotsDatabase.SynchThreads     = 2/' "$PLAYERBOTS_HOST"
 
     cp "$PLAYERBOTS_HOST" "$PLAYERBOTS_CONTAINER"
 else
