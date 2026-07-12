@@ -16,9 +16,61 @@ chown -R mysql:mysql /opt/acore/data
 su -s /bin/bash mysql -c "mysqld --defaults-file=/etc/mysql/my.cnf" &
 sleep 10
 
-echo "[ACORE] Creating Acore MySQL user (if not exists)..."
+echo "[ACORE] Creating Acore MySQL user and databases (if not exists)..."
 mysql -uroot -e "CREATE USER IF NOT EXISTS 'acore'@'%' IDENTIFIED BY 'acorepass';"
 mysql -uroot -e "GRANT ALL PRIVILEGES ON *.* TO 'acore'@'%'; FLUSH PRIVILEGES;"
+mysql -uroot -e "CREATE DATABASE IF NOT EXISTS acore_characters DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+mysql -uroot -e "CREATE DATABASE IF NOT EXISTS acore_world DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+mysql -uroot -e "CREATE DATABASE IF NOT EXISTS acore_auth DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+echo "[ACORE] Automatically importing module base SQL files..."
+if [ -d "/acore/modules" ]; then
+    for MODULE_DIR in /acore/modules/*/; do
+        [ -d "$MODULE_DIR" ] || continue
+        
+        # 1) db-characters base SQLs
+        CHAR_BASE_DIR="$MODULE_DIR/data/sql/db-characters/base"
+        [ -d "$CHAR_BASE_DIR" ] || CHAR_BASE_DIR="$MODULE_DIR/sql/db-characters/base"
+        [ -d "$CHAR_BASE_DIR" ] || CHAR_BASE_DIR="$MODULE_DIR/data/sql/db-characters"
+        [ -d "$CHAR_BASE_DIR" ] || CHAR_BASE_DIR="$MODULE_DIR/sql/db-characters"
+        
+        if [ -d "$CHAR_BASE_DIR" ]; then
+            for SQL_FILE in "$CHAR_BASE_DIR"/*.sql; do
+                [ -f "$SQL_FILE" ] || continue
+                echo "[ACORE] Importing base SQL into acore_characters: $(basename "$SQL_FILE")"
+                mysql -uroot acore_characters < "$SQL_FILE"
+            done
+        fi
+
+        # 2) db-world base SQLs
+        WORLD_BASE_DIR="$MODULE_DIR/data/sql/db-world/base"
+        [ -d "$WORLD_BASE_DIR" ] || WORLD_BASE_DIR="$MODULE_DIR/sql/db-world/base"
+        [ -d "$WORLD_BASE_DIR" ] || WORLD_BASE_DIR="$MODULE_DIR/data/sql/db-world"
+        [ -d "$WORLD_BASE_DIR" ] || WORLD_BASE_DIR="$MODULE_DIR/sql/db-world"
+
+        if [ -d "$WORLD_BASE_DIR" ]; then
+            for SQL_FILE in "$WORLD_BASE_DIR"/*.sql; do
+                [ -f "$SQL_FILE" ] || continue
+                echo "[ACORE] Importing base SQL into acore_world: $(basename "$SQL_FILE")"
+                mysql -uroot acore_world < "$SQL_FILE"
+            done
+        fi
+
+        # 3) db-auth base SQLs
+        AUTH_BASE_DIR="$MODULE_DIR/data/sql/db-auth/base"
+        [ -d "$AUTH_BASE_DIR" ] || AUTH_BASE_DIR="$MODULE_DIR/sql/db-auth/base"
+        [ -d "$AUTH_BASE_DIR" ] || AUTH_BASE_DIR="$MODULE_DIR/data/sql/db-auth"
+        [ -d "$AUTH_BASE_DIR" ] || AUTH_BASE_DIR="$MODULE_DIR/sql/db-auth"
+
+        if [ -d "$AUTH_BASE_DIR" ]; then
+            for SQL_FILE in "$AUTH_BASE_DIR"/*.sql; do
+                [ -f "$SQL_FILE" ] || continue
+                echo "[ACORE] Importing base SQL into acore_auth: $(basename "$SQL_FILE")"
+                mysql -uroot acore_auth < "$SQL_FILE"
+            done
+        fi
+    done
+fi
 
 echo "[ACORE] Starting config synchronization..."
 
