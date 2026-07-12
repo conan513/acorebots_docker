@@ -246,11 +246,26 @@ function startAuthserver() {
     authState = 'starting';
     addSystemLog('Starting Authserver...');
 
+    const binaryPath = '/opt/acore/bin/authserver';
+    if (!fs.existsSync(binaryPath)) {
+        addSystemLog(`Error: Authserver binary not found at ${binaryPath}. Recompile required.`);
+        authState = 'stopped';
+        return;
+    }
+
     try {
-        authProcess = spawn('/opt/acore/bin/authserver', [], {
+        authProcess = spawn(binaryPath, [], {
             cwd: '/opt/acore/bin',
             stdio: ['ignore', 'pipe', 'pipe']
         });
+
+        authProcess.on('error', (err) => {
+            addSystemLog(`Authserver process error: ${err.message}`);
+            authState = 'stopped';
+            authPid = null;
+            authProcess = null;
+        });
+
         authPid = authProcess.pid;
         authState = 'running';
         addSystemLog(`Authserver started (PID: ${authPid})`);
@@ -275,11 +290,26 @@ function startWorldserver() {
     worldState = 'starting';
     addSystemLog('Starting Worldserver...');
 
+    const binaryPath = '/opt/acore/bin/worldserver';
+    if (!fs.existsSync(binaryPath)) {
+        addSystemLog(`Error: Worldserver binary not found at ${binaryPath}. Recompile required.`);
+        worldState = 'stopped';
+        return;
+    }
+
     try {
-        worldProcess = spawn('/opt/acore/bin/worldserver', [], {
+        worldProcess = spawn(binaryPath, [], {
             cwd: '/opt/acore/bin',
             stdio: ['pipe', 'pipe', 'pipe']
         });
+
+        worldProcess.on('error', (err) => {
+            addSystemLog(`Worldserver process error: ${err.message}`);
+            worldState = 'stopped';
+            worldPid = null;
+            worldProcess = null;
+        });
+
         worldPid = worldProcess.pid;
         addSystemLog(`Worldserver process started (PID: ${worldPid}). Loading databases...`);
 
