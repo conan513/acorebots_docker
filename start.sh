@@ -27,6 +27,17 @@ mkdir -p "$HOST_CONFIG_DIR"
 IMPORT_LOG="$HOST_CONFIG_DIR/.imported_base_sqls"
 touch "$IMPORT_LOG"
 
+echo "[ACORE] Automatically fixing known module SQL bugs..."
+if [ -d "/acore/modules/mod-dungeon-master" ]; then
+    find /acore/modules/mod-dungeon-master -name "*.sql" -type f | while read -r sql_file; do
+        if grep -q "id1" "$sql_file"; then
+            echo "[ACORE] Fixing id1 column typo in: $(basename "$sql_file")"
+            sed -i 's/`id1`/`id`/g' "$sql_file"
+            sed -i 's/\bid1\b/id/g' "$sql_file"
+        fi
+    done
+fi
+
 echo "[ACORE] Automatically importing module base SQL files (only once)..."
 if [ -d "/acore/modules" ]; then
     for MODULE_DIR in /acore/modules/*/; do
