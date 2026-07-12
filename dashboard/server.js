@@ -1197,7 +1197,18 @@ function runRebuild(mode) {
         try {
             const saved = getSavedModules();
             const modulesDir = '/acore/modules';
-            
+
+            // 0. Delete old binaries before full build so a failed build leaves no runnable server
+            if (mode === 'full') {
+                const binaries = ['/opt/acore/bin/authserver', '/opt/acore/bin/worldserver'];
+                for (const bin of binaries) {
+                    if (fs.existsSync(bin)) {
+                        fs.rmSync(bin);
+                        addSystemLog(`Old binary removed before rebuild: ${bin}`);
+                    }
+                }
+            }
+
             // 1. Git Synchronization
             addSystemLog('Phase 1/3: Synchronizing Git modules...');
             
@@ -1262,10 +1273,15 @@ function runRebuild(mode) {
         } catch (err) {
             addSystemLog(`ERROR: Compilation process interrupted: ${err.message}`);
             rebuildStatus = 'idle';
-            
-            // Restart servers
-            startAuthserver();
-            setTimeout(startWorldserver, 3000);
+
+            // Only restart servers if the binaries exist (they may have been deleted before a failed full rebuild)
+            if (fs.existsSync('/opt/acore/bin/worldserver') && fs.existsSync('/opt/acore/bin/authserver')) {
+                addSystemLog('Binaries found, restarting servers...');
+                startAuthserver();
+                setTimeout(startWorldserver, 3000);
+            } else {
+                addSystemLog('WARNING: Server binaries not found after failed build. Servers will NOT be started. Fix the build error and recompile!');
+            }
         }
     }, 5000);
 }
