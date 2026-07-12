@@ -113,7 +113,7 @@ if [ -f "$PLAYERBOTS_DIST" ]; then
     echo "[ACORE] Applying playerbots performance optimizations..."
     sed -i 's/^AiPlayerbot\.ReactDelay.*/AiPlayerbot.ReactDelay = 200/' "$PLAYERBOTS_HOST"
     sed -i 's/^AiPlayerbot\.IterationsPerTick.*/AiPlayerbot.IterationsPerTick = 5/' "$PLAYERBOTS_HOST"
-    sed -i 's/^PlayerbotsDatabase\.WorkerThreads.*/PlayerbotsDatabase.WorkerThreads     = 4/' "$PLAYERBOTS_HOST"
+    sed -i 's/^PlayerbotsDatabase\.WorkerThreads.*/PlayerbotsDatabase.WorkerThreads     = 1/' "$PLAYERBOTS_HOST"
     sed -i 's/^PlayerbotsDatabase\.SynchThreads.*/PlayerbotsDatabase.SynchThreads     = 2/' "$PLAYERBOTS_HOST"
 
     cp "$PLAYERBOTS_HOST" "$PLAYERBOTS_CONTAINER"
