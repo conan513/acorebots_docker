@@ -23,10 +23,15 @@ mysql -uroot -e "CREATE DATABASE IF NOT EXISTS acore_characters DEFAULT CHARACTE
 mysql -uroot -e "CREATE DATABASE IF NOT EXISTS acore_world DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 mysql -uroot -e "CREATE DATABASE IF NOT EXISTS acore_auth DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 
-echo "[ACORE] Automatically importing module base SQL files..."
+mkdir -p "$HOST_CONFIG_DIR"
+IMPORT_LOG="$HOST_CONFIG_DIR/.imported_base_sqls"
+touch "$IMPORT_LOG"
+
+echo "[ACORE] Automatically importing module base SQL files (only once)..."
 if [ -d "/acore/modules" ]; then
     for MODULE_DIR in /acore/modules/*/; do
         [ -d "$MODULE_DIR" ] || continue
+        MODULE_NAME=$(basename "$MODULE_DIR")
         
         # 1) db-characters base SQLs
         CHAR_BASE_DIR="$MODULE_DIR/data/sql/db-characters/base"
@@ -37,8 +42,15 @@ if [ -d "/acore/modules" ]; then
         if [ -d "$CHAR_BASE_DIR" ]; then
             for SQL_FILE in "$CHAR_BASE_DIR"/*.sql; do
                 [ -f "$SQL_FILE" ] || continue
-                echo "[ACORE] Importing base SQL into acore_characters: $(basename "$SQL_FILE")"
-                mysql -uroot acore_characters < "$SQL_FILE"
+                SQL_IDENTIFIER="$MODULE_NAME/db-characters/$(basename "$SQL_FILE")"
+                if grep -qF "$SQL_IDENTIFIER" "$IMPORT_LOG"; then
+                    echo "[ACORE] Base SQL already imported, skipping: $SQL_IDENTIFIER"
+                else
+                    echo "[ACORE] Importing base SQL into acore_characters: $(basename "$SQL_FILE")"
+                    if mysql -uroot acore_characters < "$SQL_FILE"; then
+                        echo "$SQL_IDENTIFIER" >> "$IMPORT_LOG"
+                    fi
+                fi
             done
         fi
 
@@ -51,8 +63,15 @@ if [ -d "/acore/modules" ]; then
         if [ -d "$WORLD_BASE_DIR" ]; then
             for SQL_FILE in "$WORLD_BASE_DIR"/*.sql; do
                 [ -f "$SQL_FILE" ] || continue
-                echo "[ACORE] Importing base SQL into acore_world: $(basename "$SQL_FILE")"
-                mysql -uroot acore_world < "$SQL_FILE"
+                SQL_IDENTIFIER="$MODULE_NAME/db-world/$(basename "$SQL_FILE")"
+                if grep -qF "$SQL_IDENTIFIER" "$IMPORT_LOG"; then
+                    echo "[ACORE] Base SQL already imported, skipping: $SQL_IDENTIFIER"
+                else
+                    echo "[ACORE] Importing base SQL into acore_world: $(basename "$SQL_FILE")"
+                    if mysql -uroot acore_world < "$SQL_FILE"; then
+                        echo "$SQL_IDENTIFIER" >> "$IMPORT_LOG"
+                    fi
+                fi
             done
         fi
 
@@ -65,8 +84,15 @@ if [ -d "/acore/modules" ]; then
         if [ -d "$AUTH_BASE_DIR" ]; then
             for SQL_FILE in "$AUTH_BASE_DIR"/*.sql; do
                 [ -f "$SQL_FILE" ] || continue
-                echo "[ACORE] Importing base SQL into acore_auth: $(basename "$SQL_FILE")"
-                mysql -uroot acore_auth < "$SQL_FILE"
+                SQL_IDENTIFIER="$MODULE_NAME/db-auth/$(basename "$SQL_FILE")"
+                if grep -qF "$SQL_IDENTIFIER" "$IMPORT_LOG"; then
+                    echo "[ACORE] Base SQL already imported, skipping: $SQL_IDENTIFIER"
+                else
+                    echo "[ACORE] Importing base SQL into acore_auth: $(basename "$SQL_FILE")"
+                    if mysql -uroot acore_auth < "$SQL_FILE"; then
+                        echo "$SQL_IDENTIFIER" >> "$IMPORT_LOG"
+                    fi
+                fi
             done
         fi
     done
