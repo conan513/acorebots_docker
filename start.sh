@@ -22,6 +22,7 @@ mysql -uroot -e "GRANT ALL PRIVILEGES ON *.* TO 'acore'@'%'; FLUSH PRIVILEGES;"
 mysql -uroot -e "CREATE DATABASE IF NOT EXISTS acore_characters DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 mysql -uroot -e "CREATE DATABASE IF NOT EXISTS acore_world DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 mysql -uroot -e "CREATE DATABASE IF NOT EXISTS acore_auth DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+mysql -uroot -e "CREATE DATABASE IF NOT EXISTS acore_playerbots DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 
 mkdir -p "$HOST_CONFIG_DIR"
 IMPORT_LOG="$HOST_CONFIG_DIR/.imported_base_sqls"
@@ -44,11 +45,15 @@ if [ -d "/acore/modules" ]; then
         [ -d "$MODULE_DIR" ] || continue
         MODULE_NAME=$(basename "$MODULE_DIR")
         
-        # 1) db-characters base SQLs
+        # 1) db-characters / characters base SQLs
         CHAR_BASE_DIR="$MODULE_DIR/data/sql/db-characters/base"
         [ -d "$CHAR_BASE_DIR" ] || CHAR_BASE_DIR="$MODULE_DIR/sql/db-characters/base"
         [ -d "$CHAR_BASE_DIR" ] || CHAR_BASE_DIR="$MODULE_DIR/data/sql/db-characters"
         [ -d "$CHAR_BASE_DIR" ] || CHAR_BASE_DIR="$MODULE_DIR/sql/db-characters"
+        [ -d "$CHAR_BASE_DIR" ] || CHAR_BASE_DIR="$MODULE_DIR/data/sql/characters/base"
+        [ -d "$CHAR_BASE_DIR" ] || CHAR_BASE_DIR="$MODULE_DIR/sql/characters/base"
+        [ -d "$CHAR_BASE_DIR" ] || CHAR_BASE_DIR="$MODULE_DIR/data/sql/characters"
+        [ -d "$CHAR_BASE_DIR" ] || CHAR_BASE_DIR="$MODULE_DIR/sql/characters"
         
         if [ -d "$CHAR_BASE_DIR" ]; then
             for SQL_FILE in "$CHAR_BASE_DIR"/*.sql; do
@@ -65,11 +70,15 @@ if [ -d "/acore/modules" ]; then
             done
         fi
 
-        # 2) db-world base SQLs
+        # 2) db-world / world base SQLs
         WORLD_BASE_DIR="$MODULE_DIR/data/sql/db-world/base"
         [ -d "$WORLD_BASE_DIR" ] || WORLD_BASE_DIR="$MODULE_DIR/sql/db-world/base"
         [ -d "$WORLD_BASE_DIR" ] || WORLD_BASE_DIR="$MODULE_DIR/data/sql/db-world"
         [ -d "$WORLD_BASE_DIR" ] || WORLD_BASE_DIR="$MODULE_DIR/sql/db-world"
+        [ -d "$WORLD_BASE_DIR" ] || WORLD_BASE_DIR="$MODULE_DIR/data/sql/world/base"
+        [ -d "$WORLD_BASE_DIR" ] || WORLD_BASE_DIR="$MODULE_DIR/sql/world/base"
+        [ -d "$WORLD_BASE_DIR" ] || WORLD_BASE_DIR="$MODULE_DIR/data/sql/world"
+        [ -d "$WORLD_BASE_DIR" ] || WORLD_BASE_DIR="$MODULE_DIR/sql/world"
 
         if [ -d "$WORLD_BASE_DIR" ]; then
             for SQL_FILE in "$WORLD_BASE_DIR"/*.sql; do
@@ -86,11 +95,15 @@ if [ -d "/acore/modules" ]; then
             done
         fi
 
-        # 3) db-auth base SQLs
+        # 3) db-auth / auth base SQLs
         AUTH_BASE_DIR="$MODULE_DIR/data/sql/db-auth/base"
         [ -d "$AUTH_BASE_DIR" ] || AUTH_BASE_DIR="$MODULE_DIR/sql/db-auth/base"
         [ -d "$AUTH_BASE_DIR" ] || AUTH_BASE_DIR="$MODULE_DIR/data/sql/db-auth"
         [ -d "$AUTH_BASE_DIR" ] || AUTH_BASE_DIR="$MODULE_DIR/sql/db-auth"
+        [ -d "$AUTH_BASE_DIR" ] || AUTH_BASE_DIR="$MODULE_DIR/data/sql/auth/base"
+        [ -d "$AUTH_BASE_DIR" ] || AUTH_BASE_DIR="$MODULE_DIR/sql/auth/base"
+        [ -d "$AUTH_BASE_DIR" ] || AUTH_BASE_DIR="$MODULE_DIR/data/sql/auth"
+        [ -d "$AUTH_BASE_DIR" ] || AUTH_BASE_DIR="$MODULE_DIR/sql/auth"
 
         if [ -d "$AUTH_BASE_DIR" ]; then
             for SQL_FILE in "$AUTH_BASE_DIR"/*.sql; do
@@ -101,6 +114,27 @@ if [ -d "/acore/modules" ]; then
                 else
                     echo "[ACORE] Importing base SQL into acore_auth: $(basename "$SQL_FILE")"
                     if mysql -uroot acore_auth < "$SQL_FILE"; then
+                        echo "$SQL_IDENTIFIER" >> "$IMPORT_LOG"
+                    fi
+                fi
+            done
+        fi
+
+        # 4) playerbots base SQLs
+        PB_BASE_DIR="$MODULE_DIR/data/sql/playerbots/base"
+        [ -d "$PB_BASE_DIR" ] || PB_BASE_DIR="$MODULE_DIR/sql/playerbots/base"
+        [ -d "$PB_BASE_DIR" ] || PB_BASE_DIR="$MODULE_DIR/data/sql/playerbots"
+        [ -d "$PB_BASE_DIR" ] || PB_BASE_DIR="$MODULE_DIR/sql/playerbots"
+
+        if [ -d "$PB_BASE_DIR" ]; then
+            for SQL_FILE in "$PB_BASE_DIR"/*.sql; do
+                [ -f "$SQL_FILE" ] || continue
+                SQL_IDENTIFIER="$MODULE_NAME/playerbots/$(basename "$SQL_FILE")"
+                if grep -qF "$SQL_IDENTIFIER" "$IMPORT_LOG"; then
+                    echo "[ACORE] Base SQL already imported, skipping: $SQL_IDENTIFIER"
+                else
+                    echo "[ACORE] Importing base SQL into acore_playerbots: $(basename "$SQL_FILE")"
+                    if mysql -uroot acore_playerbots < "$SQL_FILE"; then
                         echo "$SQL_IDENTIFIER" >> "$IMPORT_LOG"
                     fi
                 fi
