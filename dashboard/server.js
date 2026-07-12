@@ -1316,6 +1316,25 @@ function runRebuild(mode) {
                 }
             }
 
+            // Apply hotfix for mod-nemesis-system compatibility if present
+            const nemesisCpp = path.join(modulesDir, 'mod-nemesis-system', 'src', 'NemesisSystem.cpp');
+            if (fs.existsSync(nemesisCpp)) {
+                try {
+                    let content = fs.readFileSync(nemesisCpp, 'utf8');
+                    if (content.includes('std::string constexpr NEMESIS_ADDON_PREFIX =')) {
+                        addSystemLog('Applying compatibility hotfix to NemesisSystem.cpp...');
+                        content = content.replace(
+                            'std::string constexpr NEMESIS_ADDON_PREFIX =',
+                            'std::string_view constexpr NEMESIS_ADDON_PREFIX ='
+                        );
+                        fs.writeFileSync(nemesisCpp, content, 'utf8');
+                        addSystemLog('Nemesis System hotfix applied successfully!');
+                    }
+                } catch (e) {
+                    addSystemLog(`Warning: Failed to patch mod-nemesis-system: ${e.message}`);
+                }
+            }
+
             // 2. CMake Configuration (full mode only)
             if (mode === 'full') {
                 addSystemLog('Phase 2/3: Running CMake configuration...');
