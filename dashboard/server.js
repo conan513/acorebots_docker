@@ -777,7 +777,7 @@ const server = http.createServer((req, res) => {
                 addSystemLog(`⚠️ DATABASE RESET initiated for: ${database}`);
 
                 const charset = 'DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci';
-                const dropCmd = `mysql -uroot -e "DROP DATABASE IF EXISTS \`${database}\`; CREATE DATABASE \`${database}\` ${charset};"`;
+                const dropCmd = `mysql -uroot -e "DROP DATABASE IF EXISTS ${database}; CREATE DATABASE ${database} ${charset};"`;
 
                 exec(dropCmd, (err) => {
                     if (err) {
