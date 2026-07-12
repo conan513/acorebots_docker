@@ -45,8 +45,10 @@ fi
 echo "[ACORE] Updating authserver config..."
 grep -v '^#' /tmp/auth.dist | while read -r line; do
     [ -z "$line" ] && continue
+    [[ "$line" == *=* ]] || continue
     key=$(echo "$line" | cut -d= -f1 | xargs)
-    if ! grep -q "^$key" "$HOST_CONFIG_DIR/authserver.conf"; then
+    escaped_key="${key//./\\.}"
+    if ! grep -q "^$escaped_key" "$HOST_CONFIG_DIR/authserver.conf"; then
         echo "$line" >> "$HOST_CONFIG_DIR/authserver.conf"
     fi
 done
@@ -55,8 +57,10 @@ done
 echo "[ACORE] Updating worldserver config..."
 grep -v '^#' /tmp/world.dist | while read -r line; do
     [ -z "$line" ] && continue
+    [[ "$line" == *=* ]] || continue
     key=$(echo "$line" | cut -d= -f1 | xargs)
-    if ! grep -q "^$key" "$HOST_CONFIG_DIR/worldserver.conf"; then
+    escaped_key="${key//./\\.}"
+    if ! grep -q "^$escaped_key" "$HOST_CONFIG_DIR/worldserver.conf"; then
         echo "$line" >> "$HOST_CONFIG_DIR/worldserver.conf"
     fi
 done
@@ -100,8 +104,10 @@ if [ -f "$PLAYERBOTS_DIST" ]; then
 
     grep -v '^#' "$PLAYERBOTS_DIST" | while read -r line; do
         [ -z "$line" ] && continue
+        [[ "$line" == *=* ]] || continue
         key=$(echo "$line" | cut -d= -f1 | xargs)
-        if ! grep -q "^$key" "$PLAYERBOTS_HOST"; then
+        escaped_key="${key//./\\.}"
+        if ! grep -q "^$escaped_key" "$PLAYERBOTS_HOST"; then
             echo "$line" >> "$PLAYERBOTS_HOST"
         fi
     done
@@ -155,8 +161,10 @@ if [ -d "/acore/modules" ]; then
             # Append any missing keys from the dist file
             grep -v '^#' "$DIST_FILE" | while read -r line; do
                 [ -z "$line" ] && continue
+                [[ "$line" == *=* ]] || continue
                 key=$(echo "$line" | cut -d= -f1 | xargs)
-                if ! grep -q "^$key" "$HOST_CONF"; then
+                escaped_key="${key//./\\.}"
+                if ! grep -q "^$escaped_key" "$HOST_CONF"; then
                     echo "$line" >> "$HOST_CONF"
                 fi
             done
