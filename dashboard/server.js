@@ -1183,6 +1183,29 @@ function runCommandWithLogs(command, args, cwd) {
     });
 }
 
+// Safe path deletion helper for older Node.js versions (supporting both files and directories)
+function deletePath(targetPath) {
+    if (!fs.existsSync(targetPath)) return;
+    try {
+        const stat = fs.statSync(targetPath);
+        if (stat.isDirectory()) {
+            if (typeof fs.rmSync === 'function') {
+                fs.rmSync(targetPath, { recursive: true, force: true });
+            } else {
+                fs.rmdirSync(targetPath, { recursive: true });
+            }
+        } else {
+            if (typeof fs.rmSync === 'function') {
+                fs.rmSync(targetPath, { force: true });
+            } else {
+                fs.unlinkSync(targetPath);
+            }
+        }
+    } catch (err) {
+        console.error(`Failed to delete path ${targetPath}:`, err);
+    }
+}
+
 function runRebuild(mode) {
     if (rebuildStatus === 'building') return;
     rebuildStatus = 'building';
@@ -1203,7 +1226,7 @@ function runRebuild(mode) {
                 const binaries = ['/opt/acore/bin/authserver', '/opt/acore/bin/worldserver'];
                 for (const bin of binaries) {
                     if (fs.existsSync(bin)) {
-                        fs.rmSync(bin);
+                        deletePath(bin);
                         addSystemLog(`Old binary removed before rebuild: ${bin}`);
                     }
                 }
@@ -1228,7 +1251,7 @@ function runRebuild(mode) {
                 for (const folder of actualFolders) {
                     if (!savedMap.some(item => item.folder === folder)) {
                         addSystemLog(`Deleting removed module directory: ${folder}...`);
-                        fs.rmSync(path.join(modulesDir, folder), { recursive: true, force: true });
+                        deletePath(path.join(modulesDir, folder));
                     }
                 }
             } else {
