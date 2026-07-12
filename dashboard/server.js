@@ -1073,6 +1073,83 @@ function checkRebuildRequired() {
     return false;
 }
 
+function syncModuleConfigs() {
+    const modulesDir = '/acore/modules';
+    const hostModulesDir = '/host-configs/modules';
+    const containerModulesDir = '/opt/acore/etc/modules';
+
+    try {
+        fs.mkdirSync(hostModulesDir, { recursive: true });
+        fs.mkdirSync(containerModulesDir, { recursive: true });
+    } catch (e) {
+        addSystemLog(`Warning: Could not create modules config dirs: ${e.message}`);
+        return;
+    }
+
+    if (!fs.existsSync(modulesDir)) return;
+
+    const moduleDirs = fs.readdirSync(modulesDir).filter(f => {
+        const fp = path.join(modulesDir, f);
+        return fs.statSync(fp).isDirectory() && f !== 'mod-playerbots';
+    });
+
+    for (const moduleName of moduleDirs) {
+        // Check both conf/ subdir and root for .conf.dist files
+        const searchDirs = [
+            path.join(modulesDir, moduleName, 'conf'),
+            path.join(modulesDir, moduleName)
+        ];
+
+        for (const searchDir of searchDirs) {
+            if (!fs.existsSync(searchDir)) continue;
+
+            const distFiles = fs.readdirSync(searchDir).filter(f => f.endsWith('.conf.dist'));
+            for (const distFile of distFiles) {
+                const distPath = path.join(searchDir, distFile);
+                const confBasename = distFile.replace('.dist', '');
+                const hostConf = path.join(hostModulesDir, confBasename);
+                const containerConf = path.join(containerModulesDir, confBasename);
+
+                try {
+                    // Copy to host if not exists
+                    if (!fs.existsSync(hostConf)) {
+                        addSystemLog(`Module config not found -> copying: ${confBasename}`);
+                        fs.copyFileSync(distPath, hostConf);
+                    } else {
+                        // Append missing keys
+                        const distContent = fs.readFileSync(distPath, 'utf8');
+                        const hostContent = fs.readFileSync(hostConf, 'utf8');
+                        const lines = distContent.split('\n');
+                        const toAppend = [];
+
+                        for (const line of lines) {
+                            const trimmed = line.trim();
+                            if (!trimmed || trimmed.startsWith('#')) continue;
+                            const key = trimmed.split('=')[0].trim();
+                            if (key && !hostContent.includes(`\n${key}`) && !hostContent.startsWith(key)) {
+                                toAppend.push(line);
+                            }
+                        }
+
+                        if (toAppend.length > 0) {
+                            fs.appendFileSync(hostConf, '\n' + toAppend.join('\n'));
+                            addSystemLog(`Module config updated with ${toAppend.length} new keys: ${confBasename}`);
+                        }
+                    }
+
+                    // Copy to container path as well
+                    fs.copyFileSync(hostConf, containerConf);
+                    addSystemLog(`Module config synced: ${confBasename}`);
+
+                } catch (e) {
+                    addSystemLog(`Warning: Failed to sync module config ${confBasename}: ${e.message}`);
+                }
+            }
+            break; // Only process one dir (conf/ preferred)
+        }
+    }
+}
+
 function runCommandAsync(command, args, cwd) {
     return new Promise((resolve, reject) => {
         const proc = spawn(command, args, { cwd });
@@ -1174,7 +1251,10 @@ function runRebuild(mode) {
 
             addSystemLog('REBUILD COMPLETED SUCCESSFULLY!');
             rebuildStatus = 'idle';
-            
+
+            // Sync module config files to host after successful rebuild
+            syncModuleConfigs();
+
             // Restart servers
             startAuthserver();
             setTimeout(startWorldserver, 3000);

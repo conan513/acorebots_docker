@@ -121,6 +121,53 @@ else
     echo "[ACORE] WARNING: playerbots.conf.dist not found in module!"
 fi
 
+# 5/b) Synchronizing all other module configs generically
+echo "[ACORE] Synchronizing additional module configs..."
+
+if [ -d "/acore/modules" ]; then
+    for MODULE_DIR in /acore/modules/*/; do
+        MODULE_NAME=$(basename "$MODULE_DIR")
+
+        # Skip playerbots (already handled above)
+        if [ "$MODULE_NAME" = "mod-playerbots" ]; then
+            continue
+        fi
+
+        # Find all .conf.dist files in this module's conf/ directory
+        CONF_SUBDIR="$MODULE_DIR/conf"
+        if [ ! -d "$CONF_SUBDIR" ]; then
+            # Some modules put configs directly in root
+            CONF_SUBDIR="$MODULE_DIR"
+        fi
+
+        for DIST_FILE in "$CONF_SUBDIR"/*.conf.dist; do
+            [ -f "$DIST_FILE" ] || continue  # skip if no match
+
+            CONF_BASENAME=$(basename "$DIST_FILE" .dist)
+            HOST_CONF="$HOST_CONFIG_DIR/modules/$CONF_BASENAME"
+            CONTAINER_CONF="$CONTAINER_CONFIG_DIR/modules/$CONF_BASENAME"
+
+            if [ ! -f "$HOST_CONF" ]; then
+                echo "[ACORE] Module config not found -> copying: $CONF_BASENAME"
+                cp "$DIST_FILE" "$HOST_CONF"
+            fi
+
+            # Append any missing keys from the dist file
+            grep -v '^#' "$DIST_FILE" | while read -r line; do
+                [ -z "$line" ] && continue
+                key=$(echo "$line" | cut -d= -f1 | xargs)
+                if ! grep -q "^$key" "$HOST_CONF"; then
+                    echo "$line" >> "$HOST_CONF"
+                fi
+            done
+
+            # Copy updated config to container path
+            cp "$HOST_CONF" "$CONTAINER_CONF"
+            echo "[ACORE] Module config synced: $CONF_BASENAME"
+        done
+    done
+fi
+
 # 6) Copy updated configs back to container config directory
 cp "$HOST_CONFIG_DIR/authserver.conf" "$CONTAINER_CONFIG_DIR/authserver.conf"
 cp "$HOST_CONFIG_DIR/worldserver.conf" "$CONTAINER_CONFIG_DIR/worldserver.conf"
