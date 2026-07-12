@@ -1267,6 +1267,25 @@ function runRebuild(mode) {
                 }
             }
 
+            // Apply hotfix for mod-city-siege compatibility if present
+            const citySiegeCpp = path.join(modulesDir, 'mod-city-siege', 'src', 'mod-city-siege.cpp');
+            if (fs.existsSync(citySiegeCpp)) {
+                try {
+                    let content = fs.readFileSync(citySiegeCpp, 'utf8');
+                    if (content.includes('bot->SetInCombatState(true);')) {
+                        addSystemLog('Applying compatibility hotfix to mod-city-siege.cpp...');
+                        content = content.replace(
+                            'bot->SetInCombatState(true);',
+                            '// bot->SetInCombatState(true); // Hotfixed by dashboard'
+                        );
+                        fs.writeFileSync(citySiegeCpp, content, 'utf8');
+                        addSystemLog('Hotfix applied successfully!');
+                    }
+                } catch (e) {
+                    addSystemLog(`Warning: Failed to patch mod-city-siege: ${e.message}`);
+                }
+            }
+
             // 2. CMake Configuration (full mode only)
             if (mode === 'full') {
                 addSystemLog('Phase 2/3: Running CMake configuration...');
