@@ -706,3 +706,66 @@ function updateRebuildUI(status) {
         setBuildingState(false);
     }
 }
+
+// ==========================================================================
+// Database Reset
+// ==========================================================================
+async function resetDatabase(dbName) {
+    const dbLabels = {
+        'acore_auth':        '🔐 acore_auth (Accounts & Sessions)',
+        'acore_characters':  '⚔️ acore_characters (Characters & Items)',
+        'acore_world':       '🌍 acore_world (World Data & Spawns)',
+        'acore_playerbots':  '🤖 acore_playerbots (Playerbot Data)'
+    };
+    const label = dbLabels[dbName] || dbName;
+
+    const confirmed = confirm(
+        `⚠️ WARNING: DATABASE RESET ⚠️\n\n` +
+        `You are about to COMPLETELY WIPE:\n${label}\n\n` +
+        `This action is IRREVERSIBLE. All data in this database will be permanently deleted.\n\n` +
+        `Both servers must be stopped first.\n\n` +
+        `Are you absolutely sure?`
+    );
+
+    if (!confirmed) return;
+
+    // Double confirm for characters and world
+    if (dbName === 'acore_characters' || dbName === 'acore_world') {
+        const confirmed2 = confirm(`⛔ FINAL CONFIRMATION\n\nType your intent: click OK to confirm wiping "${dbName}" permanently.`);
+        if (!confirmed2) return;
+    }
+
+    const msgBox = document.getElementById('db-reset-message');
+    const allBtns = document.querySelectorAll('.db-reset-btn');
+
+    msgBox.className = 'message-box';
+    msgBox.textContent = `⏳ Resetting ${dbName}...`;
+
+    allBtns.forEach(b => b.disabled = true);
+
+    try {
+        const response = await fetch('/api/admin/db-reset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ database: dbName })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            msgBox.className = 'message-box success';
+            msgBox.textContent = `✅ ${data.message}`;
+        } else {
+            msgBox.className = 'message-box error';
+            msgBox.textContent = `❌ ${data.message}`;
+        }
+    } catch (err) {
+        msgBox.className = 'message-box error';
+        msgBox.textContent = `❌ Network error: ${err.message}`;
+    } finally {
+        allBtns.forEach(b => b.disabled = false);
+        setTimeout(() => {
+            msgBox.className = 'message-box hidden';
+        }, 8000);
+    }
+}

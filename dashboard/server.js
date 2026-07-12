@@ -756,8 +756,72 @@ const server = http.createServer((req, res) => {
         });
         return;
     }
+    // 12) Database Reset
+    if (method === 'POST' && url === '/api/admin/db-reset') {
+        let body = '';
+        req.on('data', chunk => { body += chunk.toString(); });
+        req.on('end', () => {
+            try {
+                const { database } = JSON.parse(body);
+                const ALLOWED_DBS = ['acore_auth', 'acore_characters', 'acore_world', 'acore_playerbots'];
+                if (!database || !ALLOWED_DBS.includes(database)) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    return res.end(JSON.stringify({ message: 'Invalid database name!' }));
+                }
 
-    // 12) Export tools to host folder
+                if (worldState !== 'stopped' || authState !== 'stopped') {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    return res.end(JSON.stringify({ message: 'Both Authserver and Worldserver must be stopped before resetting the database!' }));
+                }
+
+                addSystemLog(`⚠️ DATABASE RESET initiated for: ${database}`);
+
+                const charset = 'DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci';
+                const dropCmd = `mysql -uroot -e "DROP DATABASE IF EXISTS \`${database}\`; CREATE DATABASE \`${database}\` ${charset};"`;
+
+                exec(dropCmd, (err) => {
+                    if (err) {
+                        addSystemLog(`❌ Database reset FAILED for ${database}: ${err.message}`);
+                        res.writeHead(500, { 'Content-Type': 'application/json' });
+                        return res.end(JSON.stringify({ message: `Reset failed: ${err.message}` }));
+                    }
+
+                    // Remove the import log entries for this DB so base SQLs are re-imported on next start
+                    const importLog = '/host-configs/.imported_base_sqls';
+                    const dbKey = database.replace('acore_', 'db-');
+                    try {
+                        if (fs.existsSync(importLog)) {
+                            const lines = fs.readFileSync(importLog, 'utf8').split('\n');
+                            const filtered = lines.filter(l => !l.includes(`/${dbKey}/`) && !l.includes(`/db-characters/`) || dbKey !== 'db-characters' ? !l.includes(`/${dbKey}/`) : false);
+                            // Simpler: remove all lines that contain the relevant DB path segments
+                            const dbSegments = {
+                                'acore_auth': '/db-auth/',
+                                'acore_characters': '/db-characters/',
+                                'acore_world': '/db-world/',
+                                'acore_playerbots': '/playerbots/'
+                            };
+                            const seg = dbSegments[database];
+                            const kept = lines.filter(l => !l.includes(seg));
+                            fs.writeFileSync(importLog, kept.join('\n'));
+                        }
+                    } catch(e) {
+                        addSystemLog(`⚠️ Could not update import log: ${e.message}`);
+                    }
+
+                    addSystemLog(`✅ Database ${database} has been reset (empty). Base SQLs will be re-imported on next server start.`);
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: true, message: `${database} has been reset successfully.` }));
+                });
+
+            } catch (err) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ message: err.message }));
+            }
+        });
+        return;
+    }
+
+    // 13) Export tools to host folder
     if (method === 'POST' && url === '/api/admin/export-tools') {
         const toolsDir = '/host-configs/tools';
         const binDir = '/opt/acore/bin';

@@ -1019,3 +1019,137 @@ h1 {
     100% { background-position: 0% 0;   transform: translateX(500%); }
 }
 
+/* ==========================================================================
+   Database Reset Card
+   ========================================================================== */
+.danger-card {
+    border-color: rgba(239, 68, 68, 0.35) !important;
+    background: rgba(18, 22, 34, 0.92) !important;
+    position: relative;
+    overflow: hidden;
+}
+
+.danger-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 0%, rgba(239, 68, 68, 0.06) 0%, transparent 70%);
+    pointer-events: none;
+}
+
+.danger-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding-top: 4px;
+}
+
+.danger-warning-text {
+    font-size: 0.82rem;
+    color: #fca5a5;
+    line-height: 1.5;
+    padding: 10px 12px;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 8px;
+}
+
+.danger-warning-text strong {
+    color: var(--danger-red);
+}
+
+.db-reset-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.db-reset-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 12px 10px;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    border-radius: 10px;
+    color: #fca5a5;
+    font-family: 'Outfit', sans-serif;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-height: 80px;
+}
+
+.db-reset-btn:hover:not(:disabled) {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.55);
+    color: #fff;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.25);
+}
+
+.db-reset-btn:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.db-reset-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.db-reset-btn .db-icon {
+    font-size: 1.4rem;
+    line-height: 1;
+}
+
+.db-reset-btn .db-name {
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+    color: #fff;
+}
+
+.db-reset-btn .db-desc {
+    font-size: 0.68rem;
+    color: #94a3b8;
+}
+
+/* Message box variants */
+.message-box {
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 0.84rem;
+    font-weight: 500;
+    transition: opacity 0.3s;
+}
+
+.message-box.success {
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    color: #6ee7b7;
+}
+
+.message-box.error {
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    color: #fca5a5;
+}
+
+.message-box.hidden {
+    display: none;
+}
+
+/* Make the admin-grid include the danger card below the aside */
+.admin-grid {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    grid-template-rows: auto auto;
+    gap: 20px;
+    align-items: start;
+}
+
+#card-db-reset {
+    grid-column: 1;
+}
+

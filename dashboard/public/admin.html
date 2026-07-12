@@ -206,6 +206,43 @@
                 </div>
             </aside>
 
+                <!-- Database Reset Card -->
+                <div class="process-card danger-card" id="card-db-reset">
+                    <div class="card-header-status">
+                        <h3>🗑️ Database Reset</h3>
+                        <span class="status-badge-inline">
+                            <span class="status-dot offline" style="background: var(--danger-red);"></span>
+                            <span class="status-lbl" style="color: var(--danger-red);">Danger Zone</span>
+                        </span>
+                    </div>
+                    <div class="danger-card-body">
+                        <p class="danger-warning-text">⚠️ This will <strong>completely wipe</strong> the selected database. Both servers must be stopped first. Base SQL files will be re-imported on next start.</p>
+                        <div class="db-reset-grid">
+                            <button onclick="resetDatabase('acore_auth')" class="wow-btn db-reset-btn" id="btn-reset-auth">
+                                <span class="db-icon">🔐</span>
+                                <span class="db-name">acore_auth</span>
+                                <span class="db-desc">Accounts, sessions</span>
+                            </button>
+                            <button onclick="resetDatabase('acore_characters')" class="wow-btn db-reset-btn" id="btn-reset-characters">
+                                <span class="db-icon">⚔️</span>
+                                <span class="db-name">acore_characters</span>
+                                <span class="db-desc">Characters, items</span>
+                            </button>
+                            <button onclick="resetDatabase('acore_world')" class="wow-btn db-reset-btn" id="btn-reset-world">
+                                <span class="db-icon">🌍</span>
+                                <span class="db-name">acore_world</span>
+                                <span class="db-desc">World data, spawns</span>
+                            </button>
+                            <button onclick="resetDatabase('acore_playerbots')" class="wow-btn db-reset-btn" id="btn-reset-playerbots">
+                                <span class="db-icon">🤖</span>
+                                <span class="db-name">acore_playerbots</span>
+                                <span class="db-desc">Playerbot data</span>
+                            </button>
+                        </div>
+                        <div id="db-reset-message" class="message-box hidden"></div>
+                    </div>
+                </div>
+
             <!-- Right side: Console Logs & Interactive Command Field -->
             <main class="console-panel">
                 <div class="console-header">

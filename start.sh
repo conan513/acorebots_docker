@@ -44,6 +44,11 @@ if [ -d "/acore/modules" ]; then
     for MODULE_DIR in /acore/modules/*/; do
         [ -d "$MODULE_DIR" ] || continue
         MODULE_NAME=$(basename "$MODULE_DIR")
+
+        # Skip playerbots (handled by the server core)
+        if [ "$MODULE_NAME" = "mod-playerbots" ]; then
+            continue
+        fi
         
         # 1) db-characters / characters base SQLs
         CHAR_BASE_DIR="$MODULE_DIR/data/sql/db-characters/base"
