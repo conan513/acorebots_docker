@@ -786,27 +786,34 @@ const server = http.createServer((req, res) => {
                         return res.end(JSON.stringify({ message: `Reset failed: ${err.message}` }));
                     }
 
-                    // Remove the import log entries for this DB so base SQLs are re-imported on next start
+                    // Remove import log entries for this DB so base SQLs are re-imported on next start.
+                    // start.sh always writes identifiers like: MODULE_NAME/db-characters/file.sql
+                    // We also cover bare variants (characters/, world/, etc.) as a fallback.
                     const importLog = '/host-configs/.imported_base_sqls';
-                    const dbKey = database.replace('acore_', 'db-');
+                    const dbSegments = {
+                        'acore_auth':       ['/db-auth/',       '/auth/'],
+                        'acore_characters': ['/db-characters/', '/characters/'],
+                        'acore_world':      ['/db-world/',      '/world/'],
+                        'acore_playerbots': ['/playerbots/',    '/db-playerbots/']
+                    };
                     try {
                         if (fs.existsSync(importLog)) {
+                            const segs = dbSegments[database] || [];
                             const lines = fs.readFileSync(importLog, 'utf8').split('\n');
-                            const filtered = lines.filter(l => !l.includes(`/${dbKey}/`) && !l.includes(`/db-characters/`) || dbKey !== 'db-characters' ? !l.includes(`/${dbKey}/`) : false);
-                            // Simpler: remove all lines that contain the relevant DB path segments
-                            const dbSegments = {
-                                'acore_auth': '/db-auth/',
-                                'acore_characters': '/db-characters/',
-                                'acore_world': '/db-world/',
-                                'acore_playerbots': '/playerbots/'
-                            };
-                            const seg = dbSegments[database];
-                            const kept = lines.filter(l => !l.includes(seg));
-                            fs.writeFileSync(importLog, kept.join('\n'));
+                            const kept = lines.filter(l => {
+                                if (!l.trim()) return false; // strip empty lines
+                                return !segs.some(seg => l.includes(seg));
+                            });
+                            const removed = lines.filter(l => l.trim()).length - kept.length;
+                            fs.writeFileSync(importLog, kept.join('\n') + '\n');
+                            addSystemLog(`📋 Import log: removed ${removed} entr${removed === 1 ? 'y' : 'ies'} for ${database} — will be re-imported on next server start.`);
+                        } else {
+                            addSystemLog(`⚠️ Import log not found at ${importLog} — base SQLs will be imported fresh on next start anyway.`);
                         }
                     } catch(e) {
                         addSystemLog(`⚠️ Could not update import log: ${e.message}`);
                     }
+
 
                     addSystemLog(`✅ Database ${database} has been reset (empty). Base SQLs will be re-imported on next server start.`);
                     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -1327,8 +1334,28 @@ function runRebuild(mode) {
             }
 
             // 1. Git Synchronization
-            addSystemLog('Phase 1/3: Synchronizing Git modules...');
-            
+            addSystemLog('Phase 1/3: Synchronizing Git repositories...');
+
+            // Helper: reset hard + pull for any git repo
+            async function gitResetAndPull(label, repoPath) {
+                addSystemLog(`Resetting ${label} to upstream...`);
+                try {
+                    await runCommandAsync('git', ['reset', '--hard', 'HEAD'], repoPath);
+                } catch (e) {
+                    addSystemLog(`Warning: git reset --hard failed for ${label}: ${e.message}`);
+                }
+                addSystemLog(`Pulling latest ${label}...`);
+                try {
+                    await runCommandAsync('git', ['pull'], repoPath);
+                    addSystemLog(`${label} updated successfully.`);
+                } catch (e) {
+                    addSystemLog(`Warning: git pull failed for ${label}: ${e.message} — continuing with existing source.`);
+                }
+            }
+
+            // Update AzerothCore core source
+            await gitResetAndPull('AzerothCore core (/acore)', '/acore');
+
             const savedMap = saved.map(url => {
                 let name = url.substring(url.lastIndexOf('/') + 1);
                 if (name.endsWith('.git')) name = name.substring(0, name.length - 4);
@@ -1352,16 +1379,40 @@ function runRebuild(mode) {
                 fs.mkdirSync(modulesDir, { recursive: true });
             }
 
-            // Download new modules
+            // Download new modules or reset+pull existing ones
             for (const item of savedMap) {
                 const folderPath = path.join(modulesDir, item.folder);
                 if (!fs.existsSync(folderPath)) {
                     addSystemLog(`Downloading new module: ${item.folder} from ${item.url}...`);
                     await runCommandAsync('git', ['clone', item.url, folderPath], '/acore');
+                } else {
+                    await gitResetAndPull(`module ${item.folder}`, folderPath);
                 }
             }
 
-            // Apply hotfix for mod-city-siege compatibility if present
+            // Also reset+pull modules present in the modules dir but NOT in savedMap
+            // (e.g. manually placed modules like those mounted from /mnt/raid/acmods/modules/)
+            if (fs.existsSync(modulesDir)) {
+                const allFolders = fs.readdirSync(modulesDir).filter(file => {
+                    const fullPath = path.join(modulesDir, file);
+                    return fs.statSync(fullPath).isDirectory() && file !== 'mod-playerbots';
+                });
+                for (const folder of allFolders) {
+                    if (!savedMap.some(item => item.folder === folder)) {
+                        const folderPath = path.join(modulesDir, folder);
+                        const isGitRepo = fs.existsSync(path.join(folderPath, '.git'));
+                        if (isGitRepo) {
+                            await gitResetAndPull(`unregistered module ${folder}`, folderPath);
+                        } else {
+                            addSystemLog(`Module ${folder} has no .git directory — skipping update (manually placed).`);
+                        }
+                    }
+                }
+            }
+
+            // ---- Re-apply hotfixes after all git resets ----
+
+            // Hotfix: mod-city-siege compatibility
             const citySiegeCpp = path.join(modulesDir, 'mod-city-siege', 'src', 'mod-city-siege.cpp');
             if (fs.existsSync(citySiegeCpp)) {
                 try {
@@ -1373,14 +1424,14 @@ function runRebuild(mode) {
                             '// bot->SetInCombatState(true); // Hotfixed by dashboard'
                         );
                         fs.writeFileSync(citySiegeCpp, content, 'utf8');
-                        addSystemLog('Hotfix applied successfully!');
+                        addSystemLog('Hotfix applied: mod-city-siege.');
                     }
                 } catch (e) {
                     addSystemLog(`Warning: Failed to patch mod-city-siege: ${e.message}`);
                 }
             }
 
-            // Apply hotfix for mod-nemesis-system compatibility if present
+            // Hotfix: mod-nemesis-system compatibility
             const nemesisCpp = path.join(modulesDir, 'mod-nemesis-system', 'src', 'NemesisSystem.cpp');
             if (fs.existsSync(nemesisCpp)) {
                 try {
@@ -1392,10 +1443,26 @@ function runRebuild(mode) {
                             'std::string_view constexpr NEMESIS_ADDON_PREFIX ='
                         );
                         fs.writeFileSync(nemesisCpp, content, 'utf8');
-                        addSystemLog('Nemesis System hotfix applied successfully!');
+                        addSystemLog('Hotfix applied: mod-nemesis-system.');
                     }
                 } catch (e) {
                     addSystemLog(`Warning: Failed to patch mod-nemesis-system: ${e.message}`);
+                }
+            }
+
+            // Hotfix: mod-playerbots RandomItemMgr — creature.id1 → creature.id
+            const randomItemMgr = path.join(modulesDir, 'mod-playerbots', 'src', 'Mgr', 'Item', 'RandomItemMgr.cpp');
+            if (fs.existsSync(randomItemMgr)) {
+                try {
+                    let content = fs.readFileSync(randomItemMgr, 'utf8');
+                    if (content.includes('c.id1')) {
+                        addSystemLog('Applying compatibility hotfix to RandomItemMgr.cpp (c.id1 → c.id)...');
+                        content = content.replaceAll('c.id1', 'c.id');
+                        fs.writeFileSync(randomItemMgr, content, 'utf8');
+                        addSystemLog('Hotfix applied: mod-playerbots RandomItemMgr.');
+                    }
+                } catch (e) {
+                    addSystemLog(`Warning: Failed to patch RandomItemMgr.cpp: ${e.message}`);
                 }
             }
 
