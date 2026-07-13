@@ -385,6 +385,15 @@ const server = http.createServer((req, res) => {
         } else if (url === '/admin.js') {
             filePath = path.join(PUBLIC_DIR, 'admin.js');
             contentType = 'application/javascript';
+        } else if (url === '/map_azeroth.jpg') {
+            filePath = path.join(PUBLIC_DIR, 'map_azeroth.jpg');
+            contentType = 'image/jpeg';
+        } else if (url === '/map_outland.jpg') {
+            filePath = path.join(PUBLIC_DIR, 'map_outland.jpg');
+            contentType = 'image/jpeg';
+        } else if (url === '/map_northrend.jpg') {
+            filePath = path.join(PUBLIC_DIR, 'map_northrend.jpg');
+            contentType = 'image/jpeg';
         }
 
         if (filePath) {
