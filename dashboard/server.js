@@ -1415,6 +1415,7 @@ function runRebuild(mode) {
             // Update AzerothCore core source
             await gitResetAndPull('AzerothCore core (/acore)', '/acore');
 
+
             const savedMap = saved.map(url => {
                 let name = url.substring(url.lastIndexOf('/') + 1);
                 if (name.endsWith('.git')) name = name.substring(0, name.length - 4);
@@ -1430,8 +1431,35 @@ function runRebuild(mode) {
 
                 for (const folder of actualFolders) {
                     if (!savedMap.some(item => item.folder === folder)) {
+                        const folderPath = path.join(modulesDir, folder);
+                        try {
+                            const files = fs.readdirSync(folderPath);
+                            const patchFiles = files.filter(f => f.endsWith('.patch'));
+                            for (const patchFile of patchFiles) {
+                                const relativePatchPath = path.join('modules', folder, patchFile);
+                                addSystemLog(`Module ${folder} has been removed. Reversing patch: ${relativePatchPath}`);
+                                try {
+                                    const revOutput = await runCommandWithOutput('git', [
+                                        'apply',
+                                        '-R',
+                                        '--ignore-space-change',
+                                        '--ignore-whitespace',
+                                        relativePatchPath
+                                    ], '/acore');
+                                    if (revOutput.trim()) {
+                                        addSystemLog(`Reverse patch output:\n${revOutput}`);
+                                    }
+                                    addSystemLog(`Successfully reversed patch: ${relativePatchPath}`);
+                                } catch (patchErr) {
+                                    addSystemLog(`Warning: Failed to reverse patch ${relativePatchPath}: ${patchErr.message}`);
+                                }
+                            }
+                        } catch (err) {
+                            addSystemLog(`Warning: Failed to scan/reverse patches for removed module ${folder}: ${err.message}`);
+                        }
+
                         addSystemLog(`Deleting removed module directory: ${folder}...`);
-                        deletePath(path.join(modulesDir, folder));
+                        deletePath(folderPath);
                     }
                 }
             } else {
