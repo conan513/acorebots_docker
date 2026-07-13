@@ -260,6 +260,20 @@ function getContinentKey(player) {
     return 'azeroth';
 }
 
+// Zoom & Pan state
+let zoomScale = 1.0;
+let panX = 0;
+let panY = 0;
+let isDragging = false;
+let startDragX = 0;
+let startDragY = 0;
+
+function resetZoom() {
+    zoomScale = 1.0;
+    panX = 0;
+    panY = 0;
+}
+
 function initPlayerMap() {
     mapCanvas = document.getElementById('map-canvas');
     if (!mapCanvas) return;
@@ -295,26 +309,92 @@ function initPlayerMap() {
             document.querySelectorAll('.map-tab').forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
             currentMap = tab.getAttribute('data-map');
+            resetZoom();
             renderMap();
         });
     });
 
-    // Tooltip handling
+    // Panning & Dragging event handlers
+    mapCanvas.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        startDragX = e.clientX - panX;
+        startDragY = e.clientY - panY;
+        mapCanvas.style.cursor = 'grabbing';
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        if (isDragging) {
+            panX = e.clientX - startDragX;
+            panY = e.clientY - startDragY;
+            // Limit panning to keep map boundaries in view
+            const maxPanX = mapCanvas.width * (zoomScale - 1);
+            const maxPanY = mapCanvas.height * (zoomScale - 1);
+            panX = Math.min(0, Math.max(-maxPanX, panX));
+            panY = Math.min(0, Math.max(-maxPanY, panY));
+            renderMap();
+        }
+    });
+
+    window.addEventListener('mouseup', () => {
+        if (isDragging) {
+            isDragging = false;
+            if (mapCanvas) mapCanvas.style.cursor = 'crosshair';
+        }
+    });
+
+    // Zooming event handler
+    mapCanvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const rect = mapCanvas.getBoundingClientRect();
+        const mX = e.clientX - rect.left;
+        const mY = e.clientY - rect.top;
+
+        const zoomFactor = 1.15;
+        let newScale = zoomScale;
+        if (e.deltaY < 0) {
+            newScale = Math.min(6.0, zoomScale * zoomFactor);
+        } else {
+            newScale = Math.max(1.0, zoomScale / zoomFactor);
+        }
+
+        if (newScale !== zoomScale) {
+            // Adjust pan coordinates to zoom into the mouse pointer
+            const scaleChange = newScale / zoomScale;
+            panX = mX - (mX - panX) * scaleChange;
+            panY = mY - (mY - panY) * scaleChange;
+
+            // Boundaries check
+            const maxPanX = mapCanvas.width * (newScale - 1);
+            const maxPanY = mapCanvas.height * (newScale - 1);
+            panX = Math.min(0, Math.max(-maxPanX, panX));
+            panY = Math.min(0, Math.max(-maxPanY, panY));
+
+            zoomScale = newScale;
+            renderMap();
+        }
+    }, { passive: false });
+
+    // Tooltip hover handling
     mapCanvas.addEventListener('mousemove', (e) => {
         const rect = mapCanvas.getBoundingClientRect();
-        // Translate mouse coords to canvas internal coords (966x732)
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
         const scaleX = mapCanvas.width / rect.width;
         const scaleY = mapCanvas.height / rect.height;
-        const mouseX = (e.clientX - rect.left) * scaleX;
-        const mouseY = (e.clientY - rect.top) * scaleY;
+        const canvasMouseX = mouseX * scaleX;
+        const canvasMouseY = mouseY * scaleY;
 
         let activePlayer = null;
         const activeContinentPlayers = getPlayersForContinent(currentMap);
 
         for (const p of activeContinentPlayers) {
             const pos = getPos(p);
-            const dist = Math.hypot(pos.x - mouseX, pos.y - mouseY);
-            if (dist < 10) { // Hover radius
+            // Project raw canvas coordinates into the panned and zoomed viewport coordinates
+            const screenX = pos.x * zoomScale + panX;
+            const screenY = pos.y * zoomScale + panY;
+
+            const dist = Math.hypot(screenX - canvasMouseX, screenY - canvasMouseY);
+            if (dist < 10) { // Hover radius threshold
                 activePlayer = p;
                 break;
             }
@@ -322,8 +402,8 @@ function initPlayerMap() {
 
         if (activePlayer) {
             mapTooltip.classList.remove('hidden');
-            mapTooltip.style.left = `${e.clientX - rect.left + 15}px`;
-            mapTooltip.style.top = `${e.clientY - rect.top + 15}px`;
+            mapTooltip.style.left = `${mouseX + 15}px`;
+            mapTooltip.style.top = `${mouseY + 15}px`;
 
             const rName = raceNames[activePlayer.race] || 'Unknown';
             const cName = classNames[activePlayer.class] || 'Unknown';
@@ -365,7 +445,15 @@ function getPos(player) {
 function renderMap() {
     if (!mapCtx || !mapImages[currentMap]) return;
 
-    // Draw background
+    // Clear canvas
+    mapCtx.clearRect(0, 0, mapCanvas.width, mapCanvas.height);
+
+    // Save context, translate & scale, draw, and restore
+    mapCtx.save();
+    mapCtx.translate(panX, panY);
+    mapCtx.scale(zoomScale, zoomScale);
+
+    // Draw background map
     mapCtx.drawImage(mapImages[currentMap], 0, 0, mapCanvas.width, mapCanvas.height);
 
     const activeContinentPlayers = getPlayersForContinent(currentMap);
@@ -381,25 +469,30 @@ function renderMap() {
     activeContinentPlayers.forEach(p => {
         const pos = getPos(p);
         
-        // Shadow/Glow
+        // Shadow/Glow (scaled down dynamically as user zooms in to keep visual sizes consistent)
+        const dotRadius = Math.max(1.5, 4 / Math.sqrt(zoomScale));
+        const glowRadius = Math.max(3, 7 / Math.sqrt(zoomScale));
+
         mapCtx.beginPath();
-        mapCtx.arc(pos.x, pos.y, 7, 0, Math.PI * 2);
+        mapCtx.arc(pos.x, pos.y, glowRadius, 0, Math.PI * 2);
         mapCtx.fillStyle = p.isBot ? 'rgba(234, 179, 8, 0.4)' : 'rgba(0, 255, 255, 0.4)';
         mapCtx.fill();
 
         // Core Dot
         mapCtx.beginPath();
-        mapCtx.arc(pos.x, pos.y, 4, 0, Math.PI * 2);
+        mapCtx.arc(pos.x, pos.y, dotRadius, 0, Math.PI * 2);
         mapCtx.fillStyle = p.isBot ? '#eab308' : '#00ffff';
         mapCtx.fill();
 
         // Border
         mapCtx.beginPath();
-        mapCtx.arc(pos.x, pos.y, 4, 0, Math.PI * 2);
+        mapCtx.arc(pos.x, pos.y, dotRadius, 0, Math.PI * 2);
         mapCtx.strokeStyle = '#000';
-        mapCtx.lineWidth = 1;
+        mapCtx.lineWidth = Math.max(0.5, 1 / zoomScale);
         mapCtx.stroke();
     });
+
+    mapCtx.restore();
 
     // Render list below
     const listEl = document.getElementById('map-player-list');
