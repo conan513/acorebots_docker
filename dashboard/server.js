@@ -509,9 +509,13 @@ const server = http.createServer((req, res) => {
 FROM characters c \
 JOIN acore_auth.account a ON c.account = a.id \
 WHERE c.online = 1`;
-        exec(`mysql -h127.0.0.1 -P3310 -uacore -pacorepass --skip-column-names -N -e "${query.replace(/"/g, '\\"')}"`, (err, stdout) => {
+        exec(`mysql -h127.0.0.1 -P3310 -uacore -pacorepass -D acore_characters --skip-column-names -N -e "${query.replace(/"/g, '\\"')}"`, (err, stdout) => {
             res.writeHead(200, { 'Content-Type': 'application/json' });
-            if (err || !stdout.trim()) {
+            if (err) {
+                console.error('[API] Playermap DB Query Error:', err);
+                return res.end(JSON.stringify([]));
+            }
+            if (!stdout.trim()) {
                 return res.end(JSON.stringify([]));
             }
             const players = stdout.trim().split('\n').map(line => {
