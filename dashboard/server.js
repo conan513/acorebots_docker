@@ -1366,6 +1366,51 @@ function deletePath(targetPath) {
     }
 }
 
+function cleanupDuplicateSqlFiles() {
+    const modulesDir = '/acore/modules';
+    if (!fs.existsSync(modulesDir)) return;
+    
+    try {
+        const moduleFolders = fs.readdirSync(modulesDir).filter(file => {
+            const fullPath = path.join(modulesDir, file);
+            return fs.statSync(fullPath).isDirectory();
+        });
+
+        for (const moduleFolder of moduleFolders) {
+            const mPath = path.join(modulesDir, moduleFolder);
+            const pairs = [
+                [path.join(mPath, 'data/sql/db-world'), path.join(mPath, 'data/sql/world')],
+                [path.join(mPath, 'sql/db-world'), path.join(mPath, 'sql/world')],
+                [path.join(mPath, 'data/sql/db-characters'), path.join(mPath, 'data/sql/characters')],
+                [path.join(mPath, 'sql/db-characters'), path.join(mPath, 'sql/characters')],
+                [path.join(mPath, 'data/sql/db-auth'), path.join(mPath, 'data/sql/auth')],
+                [path.join(mPath, 'sql/db-auth'), path.join(mPath, 'sql/auth')]
+            ];
+            
+            for (const [pathA, pathB] of pairs) {
+                if (fs.existsSync(pathA) && fs.existsSync(pathB)) {
+                    try {
+                        const filesA = fs.readdirSync(pathA);
+                        const filesB = fs.readdirSync(pathB);
+                        
+                        for (const file of filesA) {
+                            if (filesB.includes(file)) {
+                                const fileBPath = path.join(pathB, file);
+                                addSystemLog(`Hotfix: Removing duplicate SQL file in ${moduleFolder} to prevent AzerothCore crash: ${fileBPath}`);
+                                deletePath(fileBPath);
+                            }
+                        }
+                    } catch (err) {
+                        addSystemLog(`Warning: Failed to cleanup duplicate SQL files in ${moduleFolder}: ${err.message}`);
+                    }
+                }
+            }
+        }
+    } catch (err) {
+        addSystemLog(`Warning: Failed to scan modules for duplicate SQL files: ${err.message}`);
+    }
+}
+
 function runRebuild(mode) {
     if (rebuildStatus === 'building') return;
     rebuildStatus = 'building';
@@ -1589,43 +1634,7 @@ function runRebuild(mode) {
             }
 
             // Hotfix: clean up duplicate SQL files inside modules to prevent AzerothCore Fatal Duplicate filename errors
-            if (fs.existsSync(modulesDir)) {
-                const moduleFolders = fs.readdirSync(modulesDir).filter(file => {
-                    const fullPath = path.join(modulesDir, file);
-                    return fs.statSync(fullPath).isDirectory();
-                });
-
-                for (const moduleFolder of moduleFolders) {
-                    const mPath = path.join(modulesDir, moduleFolder);
-                    const pairs = [
-                        [path.join(mPath, 'data/sql/db-world'), path.join(mPath, 'data/sql/world')],
-                        [path.join(mPath, 'sql/db-world'), path.join(mPath, 'sql/world')],
-                        [path.join(mPath, 'data/sql/db-characters'), path.join(mPath, 'data/sql/characters')],
-                        [path.join(mPath, 'sql/db-characters'), path.join(mPath, 'sql/characters')],
-                        [path.join(mPath, 'data/sql/db-auth'), path.join(mPath, 'data/sql/auth')],
-                        [path.join(mPath, 'sql/db-auth'), path.join(mPath, 'sql/auth')]
-                    ];
-                    
-                    for (const [pathA, pathB] of pairs) {
-                        if (fs.existsSync(pathA) && fs.existsSync(pathB)) {
-                            try {
-                                const filesA = fs.readdirSync(pathA);
-                                const filesB = fs.readdirSync(pathB);
-                                
-                                for (const file of filesA) {
-                                    if (filesB.includes(file)) {
-                                        const fileBPath = path.join(pathB, file);
-                                        addSystemLog(`Hotfix: Removing duplicate SQL file in ${moduleFolder} to prevent AzerothCore crash: ${fileBPath}`);
-                                        deletePath(fileBPath);
-                                    }
-                                }
-                            } catch (err) {
-                                addSystemLog(`Warning: Failed to cleanup duplicate SQL files in ${moduleFolder}: ${err.message}`);
-                            }
-                        }
-                    }
-                }
-            }
+            cleanupDuplicateSqlFiles();
 
             // 2. CMake Configuration (full mode only)
             if (mode === 'full') {
@@ -1675,6 +1684,9 @@ function runRebuild(mode) {
 
 server.listen(PORT, '0.0.0.0', () => {
     addSystemLog(`Web dashboard started at http://0.0.0.0:${PORT}`);
+    
+    // Clean up duplicate SQL files inside module directories before starting servers
+    cleanupDuplicateSqlFiles();
     
     // Start initial processes
     startAuthserver();
