@@ -1303,6 +1303,23 @@ function runCommandAsync(command, args, cwd) {
     });
 }
 
+function runCommandWithOutput(command, args, cwd) {
+    return new Promise((resolve, reject) => {
+        const proc = spawn(command, args, { cwd });
+        let output = '';
+        const handleData = (data) => {
+            output += data.toString();
+        };
+        proc.stdout.on('data', handleData);
+        proc.stderr.on('data', handleData);
+        proc.on('exit', (code) => {
+            if (code === 0) resolve(output);
+            else reject(new Error(`${command} failed with exit code ${code}. Output:\n${output}`));
+        });
+    });
+}
+
+
 function runCommandWithLogs(command, args, cwd) {
     return new Promise((resolve, reject) => {
         const proc = spawn(command, args, { cwd });
@@ -1447,6 +1464,41 @@ function runRebuild(mode) {
                             await gitResetAndPull(`unregistered module ${folder}`, folderPath);
                         } else {
                             addSystemLog(`Module ${folder} has no .git directory — skipping update (manually placed).`);
+                        }
+                    }
+                }
+            }
+
+            // ---- Scan and apply patch files from all modules ----
+            addSystemLog('Scanning modules for patch files (*.patch)...');
+            if (fs.existsSync(modulesDir)) {
+                const allModuleDirs = fs.readdirSync(modulesDir).filter(file => {
+                    const fullPath = path.join(modulesDir, file);
+                    return fs.statSync(fullPath).isDirectory();
+                });
+
+                for (const moduleFolder of allModuleDirs) {
+                    const modulePath = path.join(modulesDir, moduleFolder);
+                    const files = fs.readdirSync(modulePath);
+                    const patchFiles = files.filter(f => f.endsWith('.patch'));
+
+                    for (const patchFile of patchFiles) {
+                        const relativePatchPath = path.join('modules', moduleFolder, patchFile);
+                        addSystemLog(`Found patch file: ${relativePatchPath}. Applying patch to AzerothCore core...`);
+                        try {
+                            const output = await runCommandWithOutput('git', [
+                                'apply',
+                                '--ignore-space-change',
+                                '--ignore-whitespace',
+                                relativePatchPath
+                            ], '/acore');
+                            if (output.trim()) {
+                                addSystemLog(`Patch output:\n${output}`);
+                            }
+                            addSystemLog(`Successfully applied patch: ${relativePatchPath}`);
+                        } catch (e) {
+                            addSystemLog(`ERROR: Failed to apply patch ${relativePatchPath}: ${e.message}`);
+                            throw new Error(`Failed to apply patch ${relativePatchPath}: ${e.message}`);
                         }
                     }
                 }
