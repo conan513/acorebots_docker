@@ -494,7 +494,36 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    // 4) Check Admin Login
+    // 4) Live Playermap — returns online player/bot positions from DB
+    if (method === 'GET' && url === '/api/playermap') {
+        const query = `SELECT c.name, c.map, c.position_x, c.position_y, c.level, c.race, c.class, a.username \
+FROM characters c \
+JOIN acore_auth.account a ON c.account = a.id \
+WHERE c.online = 1`;
+        exec(`mysql -h127.0.0.1 -P3310 -uacore -pacorepass --skip-column-names -N -e "${query.replace(/"/g, '\\"')}"`, (err, stdout) => {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            if (err || !stdout.trim()) {
+                return res.end(JSON.stringify([]));
+            }
+            const players = stdout.trim().split('\n').map(line => {
+                const parts = line.split('\t');
+                return {
+                    name:       parts[0] || '',
+                    map:        parseInt(parts[1]) || 0,
+                    x:          parseFloat(parts[2]) || 0,
+                    y:          parseFloat(parts[3]) || 0,
+                    level:      parseInt(parts[4]) || 1,
+                    race:       parseInt(parts[5]) || 0,
+                    class:      parseInt(parts[6]) || 0,
+                    isBot:      (parts[7] || '').toUpperCase().startsWith('RNDBOT')
+                };
+            }).filter(p => p.name);
+            res.end(JSON.stringify(players));
+        });
+        return;
+    }
+
+    // 5) Check Admin Login
     if (method === 'GET' && url === '/api/admin/check-auth') {
         const setupRequired = !hasAdminPassword();
         res.writeHead(200, { 'Content-Type': 'application/json' });

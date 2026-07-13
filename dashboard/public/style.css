@@ -1153,3 +1153,220 @@ h1 {
     grid-column: 1;
 }
 
+/* ==========================================================================
+   Live World Map Styles
+   ========================================================================== */
+.map-section {
+    margin-top: 1rem;
+    width: 100%;
+}
+
+.map-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--gold-border);
+    padding-bottom: 1rem;
+}
+
+.map-title {
+    font-size: 1.8rem;
+    margin: 0;
+}
+
+.map-meta {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+}
+
+.map-dot-legend {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.legend-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    box-shadow: 0 0 6px currentColor;
+}
+
+.player-dot {
+    background-color: #00ffff;
+    color: rgba(0, 255, 255, 0.8);
+}
+
+.bot-dot {
+    background-color: #eab308;
+    color: rgba(234, 179, 8, 0.8);
+}
+
+.map-update-time {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.map-refresh-btn {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+.map-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 0.5rem;
+}
+
+.map-tab {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--gold-border);
+    color: var(--text-primary);
+    padding: 0.5rem 1.2rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: 'Cinzel', serif;
+    font-size: 0.85rem;
+    transition: all 0.2s ease;
+}
+
+.map-tab:hover {
+    background: rgba(197, 160, 89, 0.1);
+    border-color: var(--gold-primary);
+    color: var(--gold-bright);
+}
+
+.map-tab.active {
+    background: rgba(197, 160, 89, 0.2);
+    border-color: var(--gold-primary);
+    color: var(--gold-bright);
+    box-shadow: 0 0 10px rgba(197, 160, 89, 0.15);
+}
+
+.map-canvas-wrapper {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    max-height: 600px;
+    background-color: #000;
+    border: 1px solid rgba(197, 160, 89, 0.15);
+    border-radius: 4px;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#map-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    cursor: crosshair;
+}
+
+.map-tooltip {
+    position: absolute;
+    background: rgba(10, 12, 18, 0.95);
+    border: 1px solid var(--gold-primary);
+    border-radius: 4px;
+    padding: 0.6rem 0.8rem;
+    pointer-events: none;
+    z-index: 100;
+    font-size: 0.8rem;
+    color: var(--text-primary);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.7);
+    line-height: 1.4;
+    transition: opacity 0.15s ease;
+}
+
+.map-tooltip.hidden {
+    display: none;
+    opacity: 0;
+}
+
+.map-no-players {
+    position: absolute;
+    font-family: 'Cinzel', serif;
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    pointer-events: none;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+}
+
+.map-no-players.hidden {
+    display: none;
+}
+
+.map-player-list {
+    margin-top: 1.5rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.8rem;
+    max-height: 150px;
+    overflow-y: auto;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    padding-top: 1rem;
+}
+
+.map-player-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+    padding: 0.5rem 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.8rem;
+}
+
+.map-player-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.map-player-name {
+    font-weight: 600;
+    color: var(--gold-bright);
+}
+
+.map-player-details {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+}
+
+.map-player-type {
+    font-size: 0.7rem;
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+    text-transform: uppercase;
+    font-weight: bold;
+}
+
+.map-player-type.player {
+    background: rgba(0, 255, 255, 0.1);
+    color: #00ffff;
+    border: 1px solid rgba(0, 255, 255, 0.2);
+}
+
+.map-player-type.bot {
+    background: rgba(234, 179, 8, 0.1);
+    color: #eab308;
+    border: 1px solid rgba(234, 179, 8, 0.2);
+}
+
+

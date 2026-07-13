@@ -91,6 +91,36 @@
             </section>
 
         </main>
+
+        <!-- Live World Map -->
+        <section class="map-section wow-card" id="map-section">
+            <div class="map-header">
+                <h2 class="card-title map-title">⚔ Live World Map</h2>
+                <div class="map-meta">
+                    <span class="map-dot-legend"><span class="legend-dot player-dot"></span>Player</span>
+                    <span class="map-dot-legend"><span class="legend-dot bot-dot"></span>Bot</span>
+                    <span id="map-last-update" class="map-update-time">Updating...</span>
+                    <button id="map-refresh-btn" class="wow-btn wow-btn-secondary map-refresh-btn" onclick="refreshPlayerMap()">↻ Refresh</button>
+                </div>
+            </div>
+
+            <!-- Continent Tabs -->
+            <div class="map-tabs" id="map-tabs">
+                <button class="map-tab active" data-map="azeroth" id="tab-azeroth">Azeroth</button>
+                <button class="map-tab" data-map="outland" id="tab-outland">Outland</button>
+                <button class="map-tab" data-map="northrend" id="tab-northrend">Northrend</button>
+            </div>
+
+            <!-- Map Canvas Area -->
+            <div class="map-canvas-wrapper" id="map-canvas-wrapper">
+                <canvas id="map-canvas"></canvas>
+                <div id="map-tooltip" class="map-tooltip hidden"></div>
+                <div id="map-no-players" class="map-no-players hidden">No online players on this continent</div>
+            </div>
+
+            <!-- Player List -->
+            <div id="map-player-list" class="map-player-list"></div>
+        </section>
         
         <footer class="portal-footer">
             <p>&copy; 2026 AzerothCore Bots Server. All rights reserved.</p>
