@@ -1258,8 +1258,9 @@ h1 {
 .map-canvas-wrapper {
     position: relative;
     width: 100%;
+    max-width: 792px; /* Prevent exceeding 600px height and stretching */
     aspect-ratio: 966 / 732;
-    max-height: 600px;
+    margin: 0 auto;
     background-color: #000;
     border: 1px solid rgba(197, 160, 89, 0.15);
     border-radius: 4px;
