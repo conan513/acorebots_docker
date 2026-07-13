@@ -247,7 +247,6 @@ function getPlayerPosition(x, y, m) {
 // Check which map the player belongs to
 function getContinentKey(player) {
     if (player.map === 530) {
-        // If BE/Dr starting zones, they belong to Azeroth map visually in POMM
         const x = player.x;
         const y = player.y;
         if ((y < -1000 && y > -10000 && x > 5000) || (y < -7000 && x < 0)) {
@@ -258,6 +257,27 @@ function getContinentKey(player) {
         return 'northrend';
     }
     return 'azeroth';
+}
+
+function precomputePlayerPositions(players) {
+    return players.map(p => {
+        const continent = getContinentKey(p);
+        let pos;
+        if (instancesX[continent] && instancesX[continent][p.map] !== undefined) {
+            pos = {
+                x: instancesX[continent][p.map],
+                y: instancesY[continent][p.map]
+            };
+        } else {
+            pos = getPlayerPosition(p.x, p.y, p.map);
+        }
+        return {
+            ...p,
+            continent,
+            px: pos.x,
+            py: pos.y
+        };
+    });
 }
 
 // Zoom & Pan state
@@ -374,8 +394,13 @@ function initPlayerMap() {
         }
     }, { passive: false });
 
-    // Tooltip hover handling
+    // Tooltip hover handling (Throttled & Optimized)
+    let lastMouseMoveTime = 0;
     mapCanvas.addEventListener('mousemove', (e) => {
+        const now = Date.now();
+        if (now - lastMouseMoveTime < 50) return; // Only process hover check every 50ms
+        lastMouseMoveTime = now;
+
         const rect = mapCanvas.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
@@ -387,16 +412,23 @@ function initPlayerMap() {
         let activePlayer = null;
         const activeContinentPlayers = getPlayersForContinent(currentMap);
 
-        for (const p of activeContinentPlayers) {
-            const pos = getPos(p);
+        for (let i = 0; i < activeContinentPlayers.length; i++) {
+            const p = activeContinentPlayers[i];
             // Project raw canvas coordinates into the panned and zoomed viewport coordinates
-            const screenX = pos.x * zoomScale + panX;
-            const screenY = pos.y * zoomScale + panY;
+            const screenX = p.px * zoomScale + panX;
+            const screenY = p.py * zoomScale + panY;
 
-            const dist = Math.hypot(screenX - canvasMouseX, screenY - canvasMouseY);
-            if (dist < 10) { // Hover radius threshold
-                activePlayer = p;
-                break;
+            // Fast bounding box comparison (avoid Math.hypot/Math.sqrt for performance)
+            const dx = Math.abs(screenX - canvasMouseX);
+            if (dx < 10) {
+                const dy = Math.abs(screenY - canvasMouseY);
+                if (dy < 10) {
+                    const distSq = dx * dx + dy * dy;
+                    if (distSq < 100) { // Hover radius threshold (10px squared)
+                        activePlayer = p;
+                        break;
+                    }
+                }
             }
         }
 
@@ -428,18 +460,7 @@ function initPlayerMap() {
 }
 
 function getPlayersForContinent(continent) {
-    return mapPlayers.filter(p => getContinentKey(p) === continent);
-}
-
-function getPos(player) {
-    // If inside an instance
-    if (instancesX[currentMap] && instancesX[currentMap][player.map] !== undefined) {
-        return {
-            x: instancesX[currentMap][player.map],
-            y: instancesY[currentMap][player.map]
-        };
-    }
-    return getPlayerPosition(player.x, player.y, player.map);
+    return mapPlayers.filter(p => p.continent === continent);
 }
 
 function renderMap() {
@@ -465,62 +486,71 @@ function renderMap() {
         noPlayersEl.classList.add('hidden');
     }
 
-    // Draw players
-    activeContinentPlayers.forEach(p => {
-        const pos = getPos(p);
-        
-        // Shadow/Glow (scaled down dynamically as user zooms in to keep visual sizes consistent)
+    // Draw players using optimized batched path operations
+    if (activeContinentPlayers.length > 0) {
         const dotRadius = Math.max(1.5, 4 / Math.sqrt(zoomScale));
         const glowRadius = Math.max(3, 7 / Math.sqrt(zoomScale));
 
-        mapCtx.beginPath();
-        mapCtx.arc(pos.x, pos.y, glowRadius, 0, Math.PI * 2);
-        mapCtx.fillStyle = p.isBot ? 'rgba(234, 179, 8, 0.4)' : 'rgba(0, 255, 255, 0.4)';
-        mapCtx.fill();
+        const bots = [];
+        const realPlayers = [];
+        for (let i = 0; i < activeContinentPlayers.length; i++) {
+            const p = activeContinentPlayers[i];
+            if (p.isBot) bots.push(p);
+            else realPlayers.push(p);
+        }
 
-        // Core Dot
-        mapCtx.beginPath();
-        mapCtx.arc(pos.x, pos.y, dotRadius, 0, Math.PI * 2);
-        mapCtx.fillStyle = p.isBot ? '#eab308' : '#00ffff';
-        mapCtx.fill();
-
-        // Border
-        mapCtx.beginPath();
-        mapCtx.arc(pos.x, pos.y, dotRadius, 0, Math.PI * 2);
-        mapCtx.strokeStyle = '#000';
-        mapCtx.lineWidth = Math.max(0.5, 1 / zoomScale);
-        mapCtx.stroke();
-    });
-
-    mapCtx.restore();
-
-    // Render list below
-    const listEl = document.getElementById('map-player-list');
-    if (listEl) {
-        listEl.innerHTML = '';
-        if (activeContinentPlayers.length === 0) {
-            listEl.innerHTML = '<div style="grid-column: 1/-1; text-align:center; color: var(--text-muted);">No active players or bots on this continent</div>';
-        } else {
-            activeContinentPlayers.forEach(p => {
-                const card = document.createElement('div');
-                card.className = 'map-player-card';
-                
-                const rName = raceNames[p.race] || 'Unknown';
-                const cName = classNames[p.class] || 'Unknown';
-                const typeClass = p.isBot ? 'bot' : 'player';
-                const typeText = p.isBot ? 'Bot' : 'Player';
-
-                card.innerHTML = `
-                    <div class="map-player-info">
-                        <span class="map-player-name">${p.name}</span>
-                        <span class="map-player-details">Lvl ${p.level} ${rName} ${cName}</span>
-                    </div>
-                    <span class="map-player-type ${typeClass}">${typeText}</span>
-                `;
-                listEl.appendChild(card);
+        // 1. Draw Player Glows
+        if (realPlayers.length > 0) {
+            mapCtx.beginPath();
+            realPlayers.forEach(p => {
+                mapCtx.moveTo(p.px + glowRadius, p.py);
+                mapCtx.arc(p.px, p.py, glowRadius, 0, Math.PI * 2);
             });
+            mapCtx.fillStyle = 'rgba(0, 255, 255, 0.3)';
+            mapCtx.fill();
+        }
+
+        // 2. Draw Bot Glows
+        if (bots.length > 0) {
+            mapCtx.beginPath();
+            bots.forEach(p => {
+                mapCtx.moveTo(p.px + glowRadius, p.py);
+                mapCtx.arc(p.px, p.py, glowRadius, 0, Math.PI * 2);
+            });
+            mapCtx.fillStyle = 'rgba(234, 179, 8, 0.3)';
+            mapCtx.fill();
+        }
+
+        // 3. Draw Player Core Dots & Borders
+        if (realPlayers.length > 0) {
+            mapCtx.beginPath();
+            realPlayers.forEach(p => {
+                mapCtx.moveTo(p.px + dotRadius, p.py);
+                mapCtx.arc(p.px, p.py, dotRadius, 0, Math.PI * 2);
+            });
+            mapCtx.fillStyle = '#00ffff';
+            mapCtx.fill();
+            mapCtx.strokeStyle = '#000';
+            mapCtx.lineWidth = Math.max(0.5, 1 / zoomScale);
+            mapCtx.stroke();
+        }
+
+        // 4. Draw Bot Core Dots & Borders
+        if (bots.length > 0) {
+            mapCtx.beginPath();
+            bots.forEach(p => {
+                mapCtx.moveTo(p.px + dotRadius, p.py);
+                mapCtx.arc(p.px, p.py, dotRadius, 0, Math.PI * 2);
+            });
+            mapCtx.fillStyle = '#eab308';
+            mapCtx.fill();
+            mapCtx.strokeStyle = '#000';
+            mapCtx.lineWidth = Math.max(0.5, 1 / zoomScale);
+            mapCtx.stroke();
         }
     }
+
+    mapCtx.restore();
 }
 
 function refreshPlayerMap() {
@@ -530,7 +560,7 @@ function refreshPlayerMap() {
     fetch('/api/playermap')
         .then(res => res.json())
         .then(data => {
-            mapPlayers = data;
+            mapPlayers = precomputePlayerPositions(data);
             renderMap();
             document.getElementById('map-last-update').textContent = `Last update: ${new Date().toLocaleTimeString()}`;
         })
