@@ -311,6 +311,11 @@ cp "$HOST_CONFIG_DIR/worldserver.conf" "$CONTAINER_CONFIG_DIR/worldserver.conf"
 # Ensure all config files and folders on the host are readable/writable by the host user
 chmod -R a+rw "$HOST_CONFIG_DIR"
 
+# Ensure mapped lua_scripts directory and files inside are readable/writable by host and container users
+if [ -d "/opt/acore/bin/lua_scripts" ]; then
+    chmod -R a+rw "/opt/acore/bin/lua_scripts" 2>/dev/null || true
+fi
+
 echo "[ACORE] Config synchronization completed."
 
 echo "[ACORE] Starting Web Dashboard (which will control the Auth and World servers)..."

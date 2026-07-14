@@ -23,6 +23,10 @@ if "%REALM_IP%"=="" (
 )
 
 echo [ACORE] Detected Host LAN IP: %REALM_IP%
+
+rem Create lua_scripts folder if it doesn't exist
+if not exist lua_scripts mkdir lua_scripts
+
 echo [ACORE] Starting container...
 
-docker run -it --rm --name acore-server -e REALM_IP="%REALM_IP%" -v "%cd%/configs:/host-configs" -v acore-bin:/opt/acore -v acore-source:/acore -p 8085:8085 -p 3724:3724 -p 3310:3310 -p 8000:8000 --cap-add SYS_NICE --cap-add IPC_LOCK --ulimit memlock=-1 acore
+docker run -it --rm --name acore-server -e REALM_IP="%REALM_IP%" -v "%cd%/configs:/host-configs" -v "%cd%/lua_scripts:/opt/acore/bin/lua_scripts" -v acore-bin:/opt/acore -v acore-source:/acore -p 8085:8085 -p 3724:3724 -p 3310:3310 -p 8000:8000 --cap-add SYS_NICE --cap-add IPC_LOCK --ulimit memlock=-1 acore

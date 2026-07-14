@@ -10,3 +10,8 @@
 # Ignore WoW client data files (dbc, maps, vmaps, mmaps)
 /configs/data/*
 !/configs/data/.gitkeep
+
+# Ignore custom lua scripts
+/lua_scripts/*
+!/lua_scripts/.gitkeep
+

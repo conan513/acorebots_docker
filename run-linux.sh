@@ -27,12 +27,17 @@ if [ -z "$REALM_IP" ]; then
 fi
 
 echo "[ACORE] Detected Host LAN IP: $REALM_IP"
+
+# Create lua_scripts folder if it doesn't exist
+mkdir -p lua_scripts
+
 echo "[ACORE] Starting container..."
 
 docker run -it --rm \
     --name acore-server \
     -e REALM_IP="$REALM_IP" \
     -v "$(pwd)/configs:/host-configs" \
+    -v "$(pwd)/lua_scripts:/opt/acore/bin/lua_scripts" \
     -v acore-bin:/opt/acore \
     -v acore-source:/acore \
     -p 8085:8085 \
